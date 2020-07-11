@@ -1,0 +1,1 @@
+go-rgw is a lightweight gateway of ceph based on go-ceph
