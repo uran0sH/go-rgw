@@ -14,8 +14,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	session.InitManager()
-	session.AddMySQL(mysql)
+	session.InitMySQLManager(mysql)
 	ceph, err := connection.NewCeph()
 	if err != nil {
 		fmt.Println(err)
@@ -24,7 +23,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	session.AddCeph(ceph)
+	session.InitCephManager(ceph)
 	r := router.SetupRouter()
 	if err := r.Run(":8080"); err != nil {
 		fmt.Println(err)

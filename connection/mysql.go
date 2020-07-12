@@ -52,13 +52,9 @@ func (m *MySQL) Close() error{
 	return err
 }
 
-func (m *MySQL) Save(filename, oid string) bool {
+func (m *MySQL) Save(filename, oid string) {
 	data := FilenameToID{Filename: filename, ObjectID: oid}
-	re := m.Database.NewRecord(data)
-	if re {
-		m.Database.Create(&data)
-	}
-	return re
+	m.Database.Create(&data)
 }
 
 func (m *MySQL) Delete(filename, oid string) {
