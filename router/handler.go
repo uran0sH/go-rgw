@@ -29,7 +29,6 @@ func putObject(c *gin.Context) {
 				break
 			}
 		}
-		//session.Save(file.Filename, src)
 		err = session.SaveObject(file.Filename, object)
 		if err == nil {
 			c.String(http.StatusOK, "success")

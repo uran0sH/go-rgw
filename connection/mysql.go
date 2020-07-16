@@ -8,13 +8,13 @@ import (
 )
 
 type MySQL struct {
-	User string
+	User     string
 	Password string
-	IPAddr string
-	Name string
-	Charset string
+	IPAddr   string
+	Name     string
+	Charset  string
 	Database *gorm.DB
-	mutex sync.RWMutex
+	mutex    sync.RWMutex
 }
 
 type FilenameToID struct {
@@ -22,14 +22,13 @@ type FilenameToID struct {
 	ObjectID string
 }
 
-
 func NewMySQL(user, password, ipAddr, name, charset string) *MySQL {
 	mysql := &MySQL{
-		User: user,
+		User:     user,
 		Password: password,
-		IPAddr: ipAddr,
-		Name: name,
-		Charset: charset,
+		IPAddr:   ipAddr,
+		Name:     name,
+		Charset:  charset,
 		Database: nil,
 	}
 	return mysql
@@ -47,7 +46,7 @@ func (m *MySQL) Init() error {
 	return nil
 }
 
-func (m *MySQL) Close() error{
+func (m *MySQL) Close() error {
 	err := m.Database.Close()
 	return err
 }
@@ -70,6 +69,6 @@ func (m *MySQL) FindByName(filename string) (f FilenameToID) {
 	return
 }
 
-func (m *MySQL) Update() error {
-	return nil
+func (m *MySQL) Update(filename, oid string) {
+	m.Database.Where("filename = ？", filename).Update("ObjectID", oid)
 }
