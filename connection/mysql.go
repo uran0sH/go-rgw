@@ -70,5 +70,5 @@ func (m *MySQL) FindByName(filename string) (f FilenameToID) {
 }
 
 func (m *MySQL) Update(filename, oid string) {
-	m.Database.Where("filename = ？", filename).Update("ObjectID", oid)
+	m.Database.Model(&FilenameToID{}).Where("filename = ?", filename).Update("object_id", oid)
 }
