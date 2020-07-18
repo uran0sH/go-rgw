@@ -19,6 +19,8 @@ func SaveObject(filename string, data []byte) error {
 }
 
 // SaveDataMetadata saves data and metadata and ensures the data and metadata consistency.
+// metadataName is {bucketName}.meta_{filename}
+// dataName is {bucketName}.{filename}
 func SaveDataMetadata(bucketName string, filename string, data []byte, metadata []byte) error {
 	metadataName := bucketName + ".meta_" + filename
 	dataName := bucketName + "." + filename
@@ -50,10 +52,14 @@ func SaveDataMetadata(bucketName string, filename string, data []byte, metadata 
 	rel := mysqlManager.MySQL.FindByName(dataName)
 	if rel != (connection.FilenameToID{}) {
 		mysqlManager.MySQL.Update(dataName, oid)
+	} else {
+		mysqlManager.MySQL.Save(dataName, oid)
 	}
 	rel = mysqlManager.MySQL.FindByName(metadataName)
 	if rel != (connection.FilenameToID{}) {
 		mysqlManager.MySQL.Update(metadataName, metaOid)
+	} else {
+		mysqlManager.MySQL.Save(metadataName, metaOid)
 	}
 	return nil
 }
