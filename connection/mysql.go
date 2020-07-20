@@ -17,9 +17,15 @@ type MySQL struct {
 	mutex    sync.RWMutex
 }
 
-type FilenameToID struct {
+// table
+type Object struct {
 	Filename string `gorm:"primary_key"`
 	ObjectID string
+}
+
+type User struct {
+	Username string `gorm:"primary_key"`
+	Password string
 }
 
 func NewMySQL(user, password, ipAddr, name, charset string) *MySQL {
@@ -42,6 +48,8 @@ func (m *MySQL) Init() error {
 		return err
 	}
 	fmt.Println("connect mysql successfully")
+	db.AutoMigrate(&Object{})
+	db.AutoMigrate(&User{})
 	m.Database = db
 	return nil
 }
@@ -51,24 +59,42 @@ func (m *MySQL) Close() error {
 	return err
 }
 
-func (m *MySQL) Save(filename, oid string) {
-	data := FilenameToID{Filename: filename, ObjectID: oid}
+func (m *MySQL) SaveObject(filename, oid string) {
+	data := Object{Filename: filename, ObjectID: oid}
 	m.Database.Create(&data)
 }
 
-func (m *MySQL) Delete(filename, oid string) {
-	m.Database.Delete(&FilenameToID{Filename: filename, ObjectID: oid})
+func (m *MySQL) DeleteObject(filename, oid string) {
+	m.Database.Delete(&Object{Filename: filename, ObjectID: oid})
 }
 
-func (m *MySQL) DeleteByName(filename string) {
-	m.Database.Where("filename = ?", filename).Delete(&FilenameToID{})
+func (m *MySQL) DeleteObjectByName(filename string) {
+	m.Database.Where("filename = ?", filename).Delete(&Object{})
 }
 
-func (m *MySQL) FindByName(filename string) (f FilenameToID) {
-	m.Database.Where("filename = ?", filename).First(&f)
+func (m *MySQL) FindObjectByName(filename string) (object Object) {
+	m.Database.Where("filename = ?", filename).First(&object)
 	return
 }
 
-func (m *MySQL) Update(filename, oid string) {
-	m.Database.Model(&FilenameToID{}).Where("filename = ?", filename).Update("object_id", oid)
+func (m *MySQL) UpdateObject(filename, oid string) {
+	m.Database.Model(&Object{}).Where("filename = ?", filename).Update("object_id", oid)
+}
+
+func (m *MySQL) SaveUser(username, password string) {
+	user := User{Username: username, Password: password}
+	m.Database.Create(&user)
+}
+
+func (m *MySQL) UpdateUsername(username, password string) {
+	m.Database.Model(&User{}).Where("password = ?", password).Update("username", username)
+}
+
+func (m *MySQL) UpdatePassword(username, password string) {
+	m.Database.Model(&User{}).Where("username = ?", username).Update("password", password)
+}
+
+func (m *MySQL) FindUser(username string) (u User) {
+	m.Database.Where("username = ?", username).First(&u)
+	return
 }

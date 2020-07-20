@@ -1,10 +1,18 @@
 package router
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+)
 
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
-	r.POST("/upload", putObject)
-	r.GET("/download", getObject)
+	r.POST("/register", register)
+	r.POST("/login", login)
+	authorized := r.Group("/")
+	authorized.Use(JWTAuthMiddleware())
+	{
+		authorized.POST("/upload", putObject)
+		authorized.GET("/download", getObject)
+	}
 	return r
 }

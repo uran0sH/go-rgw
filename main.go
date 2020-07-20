@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go-rgw/connection"
 	"go-rgw/router"
-	"go-rgw/session"
 )
 
 func main() {
@@ -14,7 +13,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	session.InitMySQLManager(mysql)
+	connection.InitMySQLManager(mysql)
 	ceph, err := connection.NewCeph()
 	if err != nil {
 		fmt.Println(err)
@@ -23,7 +22,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	session.InitCephManager(ceph)
+	connection.InitCephManager(ceph)
 	r := router.SetupRouter()
 	if err := r.Run(":8080"); err != nil {
 		fmt.Println(err)
