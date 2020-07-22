@@ -18,9 +18,9 @@ type MySQL struct {
 }
 
 // table
-type Object struct {
-	Filename string `gorm:"primary_key"`
-	ObjectID string
+type NameToID struct {
+	Name string `gorm:"primary_key"`
+	ID   string
 }
 
 type User struct {
@@ -48,7 +48,7 @@ func (m *MySQL) Init() error {
 		return err
 	}
 	fmt.Println("connect mysql successfully")
-	db.AutoMigrate(&Object{})
+	db.AutoMigrate(&NameToID{})
 	db.AutoMigrate(&User{})
 	m.Database = db
 	return nil
@@ -59,26 +59,58 @@ func (m *MySQL) Close() error {
 	return err
 }
 
-func (m *MySQL) SaveObject(filename, oid string) {
-	data := Object{Filename: filename, ObjectID: oid}
+func (m *MySQL) SaveMap(name, id string) {
+	data := NameToID{Name: name, ID: id}
 	m.Database.Create(&data)
 }
 
-func (m *MySQL) DeleteObject(filename, oid string) {
-	m.Database.Delete(&Object{Filename: filename, ObjectID: oid})
+func (m *MySQL) DeleteMap(name, id string) {
+	m.Database.Delete(&NameToID{Name: name, ID: id})
 }
 
-func (m *MySQL) DeleteObjectByName(filename string) {
-	m.Database.Where("filename = ?", filename).Delete(&Object{})
+func (m *MySQL) DeleteMapByName(name string) {
+	m.Database.Where("name = ?", name).Delete(&NameToID{})
 }
 
-func (m *MySQL) FindObjectByName(filename string) (object Object) {
-	m.Database.Where("filename = ?", filename).First(&object)
+func (m *MySQL) FindMapByName(name string) (result NameToID) {
+	m.Database.Where("name = ?", name).First(&result)
 	return
 }
 
-func (m *MySQL) UpdateObject(filename, oid string) {
-	m.Database.Model(&Object{}).Where("filename = ?", filename).Update("object_id", oid)
+func (m *MySQL) UpdateMap(name, id string) {
+	m.Database.Model(&NameToID{}).Where("name = ?", name).Update("id", id)
+}
+
+// SaveMapTransaction if you want to save both the mapping from data name to data ID and the mapping from metadata name
+// to metadata ID, you should use this method.
+func (m *MySQL) SaveMapTransaction(dataName, dataID, metaName, metaID string) error {
+	tx := m.Database.Begin()
+	data := NameToID{Name: dataName, ID: dataID}
+	if err := tx.Create(&data).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	metadata := NameToID{Name: metaName, ID: metaID}
+	if err := tx.Create(&metadata).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx.Commit()
+	return nil
+}
+
+func (m *MySQL) UpdateMapTransaction(dataName, dataID, metaName, metaID string) error {
+	tx := m.Database.Begin()
+	if err := tx.Model(&NameToID{}).Where("name = ?", dataName).Update("id", dataID).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Model(&NameToID{}).Where("name = ?", metaName).Update("id", metaID).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx.Commit()
+	return nil
 }
 
 func (m *MySQL) SaveUser(username, password string) {
