@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"go-rgw/session"
-	"io"
 	"net/http"
 	"strings"
 )
@@ -15,50 +14,41 @@ const metaPrefix = "C-Meta-"
 // request header should contain the bucket(bucketName) and filename
 func putObject(c *gin.Context) {
 	body := c.Request.Body
-	cache := make([]byte, 1024)
-	var data []byte
-	for {
-		n, err := body.Read(cache)
-		// why?
-		if err != nil && err != io.EOF {
-			c.String(http.StatusInternalServerError, fmt.Sprintf("%s", err))
-			return
-		}
-		data = append(data, cache[:n]...)
-		if err == io.EOF {
-			break
-		}
-	}
-	var metadata []byte
+
+	var metadata = make(map[string][]string)
 	for key, value := range c.Request.Header {
+		//TODO delete
 		fmt.Println(key, value)
 		if strings.HasPrefix(key, metaPrefix) {
-			for _, v := range value {
-				metadata = append(metadata, []byte(v)...)
-			}
+			metadata[key] = value
 		}
 	}
-	bucketName := c.GetHeader("bucket")
-	fileName := c.GetHeader("filename")
-	err := session.SaveDataMetadata(bucketName, fileName, data, metadata)
+	bucketName := c.Param("bucket")
+	objectName := c.Param("object")
+	err := session.SaveObject(objectName, bucketName, body, metadata, "")
 	if err != nil {
 		c.String(http.StatusInternalServerError, "save failed")
-	} else {
-		c.String(http.StatusOK, "success")
+		return
 	}
+	c.String(http.StatusOK, "success")
 }
 
-func getObject(c *gin.Context) {
-	filename := c.Query("filename")
-	content, err := session.GetObject(filename)
-	if err == nil {
-		c.Writer.WriteHeader(http.StatusOK)
-		c.Header("Content-Disposition", "attachment; filename="+filename)
-		c.Header("Content-Type", "application/text/plain")
-		fmt.Println(len(content))
-		c.Header("Accept-Length", fmt.Sprintf("%d", len(content)))
-		_, _ = c.Writer.Write(content)
-	} else {
-		c.String(http.StatusInternalServerError, "failed")
-	}
+func createBucket(c *gin.Context) {
+	bucketName := c.Param("bucket")
+	session.CreateBucket(bucketName)
 }
+
+//func getObject(c *gin.Context) {
+//	filename := c.Query("filename")
+//	content, err := session.GetObject(filename)
+//	if err == nil {
+//		c.Writer.WriteHeader(http.StatusOK)
+//		c.Header("Content-Disposition", "attachment; filename="+filename)
+//		c.Header("Content-Type", "application/text/plain")
+//		fmt.Println(len(content))
+//		c.Header("Accept-Length", fmt.Sprintf("%d", len(content)))
+//		_, _ = c.Writer.Write(content)
+//	} else {
+//		c.String(http.StatusInternalServerError, "failed")
+//	}
+//}

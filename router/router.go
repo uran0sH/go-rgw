@@ -9,8 +9,9 @@ func SetupRouter() *gin.Engine {
 	r := gin.Default()
 	authorized := registerAuthMiddleware(r, auth.DefaultAuth{})
 	{
-		authorized.POST("/upload", putObject)
-		authorized.GET("/download", getObject)
+		authorized.GET("/createbucket/:bucket", createBucket)
+		authorized.POST("/upload/:bucket/:object", putObject)
+		//authorized.GET("/download", getObject)
 	}
 	return r
 }

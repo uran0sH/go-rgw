@@ -93,7 +93,7 @@ func (j *JWT) CreateUser(c *gin.Context) {
 		c.String(http.StatusOK, "user has existed")
 		return
 	}
-	connection.MysqlMgr.MySQL.SaveUser(registerUser.Username, registerUser.Password)
+	connection.MysqlMgr.MySQL.CreateUser(registerUser.Username, registerUser.Password)
 	c.String(http.StatusOK, "success")
 	return
 }

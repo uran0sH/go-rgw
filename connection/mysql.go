@@ -17,15 +17,40 @@ type MySQL struct {
 	mutex    sync.RWMutex
 }
 
-// table
-type NameToID struct {
-	Name string `gorm:"primary_key"`
-	ID   string
+type User struct {
+	UserID   string `gorm:"primary_key"`
+	Username string
+	Password string
 }
 
-type User struct {
-	Username string `gorm:"primary_key"`
-	Password string
+// TODO add foreign key
+type Bucket struct {
+	BucketID   string `gorm:"primary_key"`
+	BucketName string
+}
+
+// TODO add foreign key
+// ObjectID = clustID.bucketID.ObjectUUID
+type Object struct {
+	ObjectName string `gorm:"primary_key"`
+	ObjectID   string
+}
+
+// MetadataID is the objectID-acl
+type ObjectACL struct {
+	ACLID string `gorm:"primary_key"`
+	ACL   string
+}
+
+type BucketACL struct {
+	BucketID string `gorm:"primary_key"`
+	ACL      string
+}
+
+// MetadataID is the objectID-metadata
+type ObjectMetadata struct {
+	MetadataID string `gorm:"primary_key"`
+	Metadata   string
 }
 
 func NewMySQL(user, password, ipAddr, name, charset string) *MySQL {
@@ -47,9 +72,17 @@ func (m *MySQL) Init() error {
 	if err != nil {
 		return err
 	}
+	// TODO use the log
 	fmt.Println("connect mysql successfully")
-	db.AutoMigrate(&NameToID{})
+
+	// Automigrate the database if these following tables are not in the database
+	db.AutoMigrate(&Bucket{})
 	db.AutoMigrate(&User{})
+	db.AutoMigrate(&Object{})
+	db.AutoMigrate(&ObjectACL{})
+	db.AutoMigrate(&ObjectMetadata{})
+	db.AutoMigrate(&BucketACL{})
+
 	m.Database = db
 	return nil
 }
@@ -59,74 +92,109 @@ func (m *MySQL) Close() error {
 	return err
 }
 
-func (m *MySQL) SaveMap(name, id string) {
-	data := NameToID{Name: name, ID: id}
-	m.Database.Create(&data)
+func (m *MySQL) CreateBucket(name, id string) {
+	bucket := Bucket{id, name}
+	m.Database.Create(&bucket)
 }
 
-func (m *MySQL) DeleteMap(name, id string) {
-	m.Database.Delete(&NameToID{Name: name, ID: id})
+func (m *MySQL) DeleteBucket(name string) {
+	m.Database.Where("bucket_name = ?", name).Delete(&Bucket{})
 }
 
-func (m *MySQL) DeleteMapByName(name string) {
-	m.Database.Where("name = ?", name).Delete(&NameToID{})
-}
-
-func (m *MySQL) FindMapByName(name string) (result NameToID) {
-	m.Database.Where("name = ?", name).First(&result)
+func (m *MySQL) FindBucket(name string) (bucket Bucket) {
+	m.Database.Where("bucket_name = ?", name).First(&bucket)
 	return
 }
 
-func (m *MySQL) UpdateMap(name, id string) {
-	m.Database.Model(&NameToID{}).Where("name = ?", name).Update("id", id)
+func (m *MySQL) ListBuckets(uid string) []Bucket {
+	var buckets []Bucket
+	m.Database.Where("user_id = ?", uid).Find(&buckets)
+	return buckets
 }
 
-// SaveMapTransaction if you want to save both the mapping from data name to data ID and the mapping from metadata name
-// to metadata ID, you should use this method.
-func (m *MySQL) SaveMapTransaction(dataName, dataID, metaName, metaID string) error {
-	tx := m.Database.Begin()
-	data := NameToID{Name: dataName, ID: dataID}
-	if err := tx.Create(&data).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-	metadata := NameToID{Name: metaName, ID: metaID}
-	if err := tx.Create(&metadata).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-	tx.Commit()
-	return nil
-}
-
-func (m *MySQL) UpdateMapTransaction(dataName, dataID, metaName, metaID string) error {
-	tx := m.Database.Begin()
-	if err := tx.Model(&NameToID{}).Where("name = ?", dataName).Update("id", dataID).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := tx.Model(&NameToID{}).Where("name = ?", metaName).Update("id", metaID).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-	tx.Commit()
-	return nil
-}
-
-func (m *MySQL) SaveUser(username, password string) {
-	user := User{Username: username, Password: password}
+func (m *MySQL) CreateUser(username, password, uid string) {
+	user := User{UserID: uid, Username: username, Password: password}
 	m.Database.Create(&user)
 }
 
-func (m *MySQL) UpdateUsername(username, password string) {
-	m.Database.Model(&User{}).Where("password = ?", password).Update("username", username)
+func (m *MySQL) UpdateUsername(uid, username string) {
+	m.Database.Model(&User{}).Where("user_id = ?", uid).Update("username", username)
 }
 
 func (m *MySQL) UpdatePassword(username, password string) {
 	m.Database.Model(&User{}).Where("username = ?", username).Update("password", password)
 }
 
-func (m *MySQL) FindUser(username string) (u User) {
+func (m *MySQL) FindUser(username string) User {
+	var u User
 	m.Database.Where("username = ?", username).First(&u)
-	return
+	return u
+}
+
+func (m *MySQL) CreateObject(objectName string, oid string) {
+	object := Object{ObjectName: objectName, ObjectID: oid}
+	m.Database.Create(&object)
+}
+
+func (m *MySQL) DeleteObject(objectName string) {
+	m.Database.Where("object_name = ?", objectName).Delete(Object{})
+}
+
+func (m *MySQL) FindObject(objectName string) Object {
+	var object Object
+	m.Database.Where("object_name = ?", objectName).First(&object)
+	return object
+}
+
+func (m *MySQL) UpdateObject(objectName, oid string) {
+	m.Database.Model(&Object{}).Where("object_name = ?", objectName).Update("object_id", oid)
+}
+
+// save the acl, metadata and oid
+func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata string, acl string) (err error) {
+	tx := m.Database.Begin()
+
+	defer func() {
+		if err != nil && tx != nil {
+			tx.Rollback()
+		}
+	}()
+
+	metadataID := oid + "-metadata"
+	aclID := oid + "-acl"
+
+	var tempObj Object
+	if tx.Where("object_name = ?", objectName).First(&tempObj); tempObj != (Object{}) {
+		object := Object{ObjectName: objectName, ObjectID: oid}
+		if err = tx.Create(&object).Error; err != nil {
+			return
+		}
+	} else {
+		tempObj.ObjectID = oid
+		if err = tx.Save(&tempObj).Error; err != nil {
+			return
+		}
+		// delete metadata's and acl's old version
+		tempMetadata := tempObj.ObjectID + "-metadata"
+		if err = tx.Where("metadata_id = ?", tempMetadata).Delete(&ObjectMetadata{}).Error; err != nil {
+			return
+		}
+		tempACL := tempObj.ObjectID + "-acl"
+		if err = tx.Where("ACLID = ?", tempACL).Delete(&ObjectACL{}).Error; err != nil {
+			return
+		}
+	}
+
+	objectMetadata := ObjectMetadata{MetadataID: metadataID, Metadata: metadata}
+	if err = tx.Create(&objectMetadata).Error; err != nil {
+		return
+	}
+
+	objectACL := ObjectACL{ACLID: aclID, ACL: acl}
+	if err = tx.Create(&objectACL).Error; err != nil {
+		return
+	}
+
+	tx.Commit()
+	return nil
 }
