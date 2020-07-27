@@ -30,6 +30,7 @@ type Bucket struct {
 }
 
 // TODO add foreign key
+// ObjectName = bucketID-object
 // ObjectID = clustID.bucketID.ObjectUUID
 type Object struct {
 	ObjectName string `gorm:"primary_key"`
@@ -164,23 +165,23 @@ func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata st
 	aclID := oid + "-acl"
 
 	var tempObj Object
-	if tx.Where("object_name = ?", objectName).First(&tempObj); tempObj != (Object{}) {
+	if tx.Where("object_name = ?", objectName).First(&tempObj); tempObj == (Object{}) {
 		object := Object{ObjectName: objectName, ObjectID: oid}
 		if err = tx.Create(&object).Error; err != nil {
 			return
 		}
 	} else {
-		tempObj.ObjectID = oid
-		if err = tx.Save(&tempObj).Error; err != nil {
-			return
-		}
 		// delete metadata's and acl's old version
 		tempMetadata := tempObj.ObjectID + "-metadata"
 		if err = tx.Where("metadata_id = ?", tempMetadata).Delete(&ObjectMetadata{}).Error; err != nil {
 			return
 		}
 		tempACL := tempObj.ObjectID + "-acl"
-		if err = tx.Where("ACLID = ?", tempACL).Delete(&ObjectACL{}).Error; err != nil {
+		if err = tx.Where("acl_id = ?", tempACL).Delete(&ObjectACL{}).Error; err != nil {
+			return
+		}
+		tempObj.ObjectID = oid
+		if err = tx.Save(&tempObj).Error; err != nil {
 			return
 		}
 	}

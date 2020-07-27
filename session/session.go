@@ -1,6 +1,10 @@
 package session
 
 import (
+	"bufio"
+	"bytes"
+	"crypto/md5"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"go-rgw/allocator"
@@ -8,7 +12,7 @@ import (
 	"io"
 )
 
-func SaveObject(objectName, bucketName string, object io.ReadCloser, metadataM map[string][]string,
+func SaveObject(objectName, bucketName string, object io.ReadCloser, hash string, metadataM map[string][]string,
 	acl string) (err error) {
 	// rollback
 	rollback := func(rollback func()) {
@@ -17,14 +21,14 @@ func SaveObject(objectName, bucketName string, object io.ReadCloser, metadataM m
 		}
 	}
 
-	// 5M
-	var objectCache = make([]byte, 5*1024*1024)
+	// 1M
+	var objectCache = make([]byte, 1024*1024)
 	var data []byte
 	// read the object
 	for {
 		n, err := object.Read(objectCache)
 		if err != nil && err != io.EOF {
-			return
+			return err
 		}
 		data = append(data, objectCache[:n]...)
 		if err == io.EOF {
@@ -43,19 +47,40 @@ func SaveObject(objectName, bucketName string, object io.ReadCloser, metadataM m
 	}
 	oid := allocator.AllocateObjectID(bucketID, clusterID)
 
+	// check hash
+	check := md5.New()
+	hashcache := bufio.NewReader(bytes.NewReader(data))
+	_, err = io.Copy(check, hashcache)
+	if err != nil {
+		return
+	}
+	hashC := base64.StdEncoding.EncodeToString(check.Sum(nil))
+	if hashC != hash {
+		return fmt.Errorf("hash inconsistency")
+	}
+
 	// save object
 	err = connection.CephMgr.Ceph.WriteObject(connection.BucketData, oid, data, 0)
 	if err != nil {
 		return
 	}
 	defer rollback(func() { rollbackSaveObject(oid) })
-
+	// remove the existed object
+	objectID := connection.MysqlMgr.MySQL.FindObject(objectName).ObjectID
+	if objectID != "" {
+		err = connection.CephMgr.Ceph.DeleteObject(connection.BucketData, objectID)
+		if err != nil {
+			return
+		}
+	}
 	// save metadata, acl and objectid to database
 	metadata, err := json.Marshal(&metadataM)
 	if err != nil {
 		return
 	}
-	err = connection.MysqlMgr.MySQL.SaveObjectTransaction(objectName, oid, string(metadata), acl)
+	// object name
+	name := bucketID + "-" + objectName
+	err = connection.MysqlMgr.MySQL.SaveObjectTransaction(name, oid, string(metadata), acl)
 	if err != nil {
 		return
 	}
@@ -80,12 +105,14 @@ func CreateBucket(bucketName string) {
 	connection.MysqlMgr.MySQL.CreateBucket(bucketName, bucketID)
 }
 
-//func GetObject(filename string) ([]byte, error) {
-//	oid := connection.MysqlMgr.MySQL.FindMapByName(filename).ID
-//	if oid == "" {
-//		return nil, fmt.Errorf("the filename doesn't exist")
-//	}
-//	data := make([]byte, 100)
-//	n, err := connection.CephMgr.Ceph.ReadObject(connection.BucketData, oid, data, 0)
-//	return data[:n], err
-//}
+func GetObject(bucketName, objectName string) ([]byte, error) {
+	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	name := bucketID + "-" + objectName
+	oid := connection.MysqlMgr.MySQL.FindObject(name).ObjectID
+	if oid == "" {
+		return nil, fmt.Errorf("the objectName doesn't exist")
+	}
+	data := make([]byte, 1024*1024)
+	n, err := connection.CephMgr.Ceph.ReadObject(connection.BucketData, oid, data, 0)
+	return data[:n], err
+}

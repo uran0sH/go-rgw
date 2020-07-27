@@ -42,12 +42,6 @@ func (c *Ceph) InitDefault() error {
 const (
 	// rgw.bucket.data stores the object
 	BucketData = "rgw.bucket.data"
-
-	// rgw.user.uid stores the uid of user and id of user's bucket
-	UserUid = "rgw.user.uid"
-
-	// rgw.bucket.index stores the index of bucket
-	BucketIndex = "rgw.bucket.index"
 )
 
 // InitPools creates the pools the go-rgw needs
@@ -61,12 +55,6 @@ func (c *Ceph) InitPools() error {
 		if value == BucketData {
 			c.Pools[BucketData] = true
 		}
-		if value == UserUid {
-			c.Pools[UserUid] = true
-		}
-		if value == BucketIndex {
-			c.Pools[BucketIndex] = true
-		}
 	}
 	// if pool doesn't exist, create the pool.
 	if _, ok := c.Pools[BucketData]; !ok || !c.Pools[BucketData] {
@@ -75,20 +63,6 @@ func (c *Ceph) InitPools() error {
 			return err
 		}
 		c.Pools[BucketData] = true
-	}
-	if _, ok := c.Pools[UserUid]; !ok || !c.Pools[UserUid] {
-		err := c.createPool(UserUid)
-		if err != nil {
-			return err
-		}
-		c.Pools[UserUid] = true
-	}
-	if _, ok := c.Pools[BucketIndex]; !ok || !c.Pools[BucketIndex] {
-		err := c.createPool(BucketIndex)
-		if err != nil {
-			return err
-		}
-		c.Pools[BucketIndex] = true
 	}
 	return nil
 }

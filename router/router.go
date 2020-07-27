@@ -11,7 +11,8 @@ func SetupRouter() *gin.Engine {
 	{
 		authorized.GET("/createbucket/:bucket", createBucket)
 		authorized.POST("/upload/:bucket/:object", putObject)
-		//authorized.GET("/download", getObject)
+		authorized.GET("/download/:bucket/:object", getObject)
+		authorized.POST("/multipartupload/init", initMultipartUpload)
 	}
 	return r
 }
