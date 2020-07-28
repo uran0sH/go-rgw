@@ -32,9 +32,11 @@ type Bucket struct {
 // TODO add foreign key
 // ObjectName = bucketID-object
 // ObjectID = clustID.bucketID.ObjectUUID
+// IsMultipart whether the object is a multipart upload
 type Object struct {
-	ObjectName string `gorm:"primary_key"`
-	ObjectID   string
+	ObjectName  string `gorm:"primary_key"`
+	ObjectID    string
+	IsMultipart bool
 }
 
 // MetadataID is the objectID-acl
@@ -52,6 +54,13 @@ type BucketACL struct {
 type ObjectMetadata struct {
 	MetadataID string `gorm:"primary_key"`
 	Metadata   string
+}
+
+// oid is UploadID:PartID:ObjectID
+type MultipartObject struct {
+	ObjectID string
+	PartID   string
+	UploadID string
 }
 
 func NewMySQL(user, password, ipAddr, name, charset string) *MySQL {
@@ -132,9 +141,9 @@ func (m *MySQL) FindUser(username string) User {
 	return u
 }
 
-func (m *MySQL) CreateObject(objectName string, oid string) {
+func (m *MySQL) CreateObject(objectName string, oid string) error {
 	object := Object{ObjectName: objectName, ObjectID: oid}
-	m.Database.Create(&object)
+	return m.Database.Create(&object).Error
 }
 
 func (m *MySQL) DeleteObject(objectName string) {
@@ -196,6 +205,28 @@ func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata st
 		return
 	}
 
+	tx.Commit()
+	return nil
+}
+
+// save multipartObject && metadata
+func (m *MySQL) SavePartObjectTransaction(objectID, uploadID, partID, metadata string) (err error) {
+	tx := m.Database.Begin()
+
+	defer func() {
+		if err != nil && tx != nil {
+			tx.Rollback()
+		}
+	}()
+	multi := MultipartObject{ObjectID: objectID, UploadID: uploadID, PartID: partID}
+	if err = tx.Create(&multi).Error; err != nil {
+		return
+	}
+	oid := uploadID + ":" + partID + ":" + objectID + "-metadata"
+	meta := ObjectMetadata{MetadataID: oid, Metadata: metadata}
+	if err = tx.Create(&meta).Error; err != nil {
+		return
+	}
 	tx.Commit()
 	return nil
 }

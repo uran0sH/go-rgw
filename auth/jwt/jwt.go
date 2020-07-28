@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"go-rgw/allocator"
 	"go-rgw/connection"
 	"net/http"
 	"strings"
@@ -11,7 +12,7 @@ import (
 )
 
 type MyClaims struct {
-	Username string
+	UserID string
 	jwt.StandardClaims
 }
 
@@ -19,9 +20,9 @@ const TokenExpireDuration = 2 * time.Hour
 
 var secret = []byte("Thehardestchoicesrequirethestrongestwills")
 
-func GenToken(username string) (string, error) {
+func GenToken(userID string) (string, error) {
 	claims := MyClaims{
-		username,
+		userID,
 		jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(TokenExpireDuration).Unix(),
 			Issuer:    "go-rgw",
@@ -61,7 +62,7 @@ func (j *JWT) Login(c *gin.Context) {
 	}
 	user := connection.MysqlMgr.MySQL.FindUser(userRe.Username)
 	if user.Password == userRe.Password {
-		tokenString, err := GenToken(user.Username)
+		tokenString, err := GenToken(user.UserID)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "generate token error")
 			return
@@ -93,7 +94,8 @@ func (j *JWT) CreateUser(c *gin.Context) {
 		c.String(http.StatusOK, "user has existed")
 		return
 	}
-	connection.MysqlMgr.MySQL.CreateUser(registerUser.Username, registerUser.Password)
+	uid := allocator.AllocateUUID()
+	connection.MysqlMgr.MySQL.CreateUser(registerUser.Username, registerUser.Password, uid)
 	c.String(http.StatusOK, "success")
 	return
 }
@@ -128,7 +130,7 @@ func (j *JWT) Auth() func(c *gin.Context) {
 			return
 		}
 		// 将当前请求的username信息保存到请求的上下文c上
-		c.Set("username", mc.Username)
+		c.Set("username", mc.UserID)
 		c.Next()
 	}
 }

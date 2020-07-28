@@ -101,7 +101,7 @@ func rollbackSaveObject(id string) {
 }
 
 func CreateBucket(bucketName string) {
-	bucketID := allocator.AllocateBucketID()
+	bucketID := allocator.AllocateUUID()
 	connection.MysqlMgr.MySQL.CreateBucket(bucketName, bucketID)
 }
 
@@ -115,4 +115,57 @@ func GetObject(bucketName, objectName string) ([]byte, error) {
 	data := make([]byte, 1024*1024)
 	n, err := connection.CephMgr.Ceph.ReadObject(connection.BucketData, oid, data, 0)
 	return data[:n], err
+}
+
+// save objectName->objectID
+func SaveObjectName(objectName, bucketName string) error {
+	clusterID, err := allocator.GetClusterID()
+	if err != nil {
+		return err
+	}
+	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	if bucketID == "" {
+		return fmt.Errorf("bucket doesn't exist")
+	}
+	oid := allocator.AllocateObjectID(bucketID, clusterID)
+	return connection.MysqlMgr.MySQL.CreateObject(objectName, oid)
+}
+
+// save one object's part
+func SaveObjectPart(objectName, partID, uploadID, hash string, object io.ReadCloser, metadataM map[string][]string) (err error) {
+	//rollback
+	rollback := func(rollback func()) {
+		if err != nil {
+			rollback()
+		}
+	}
+
+	var objectCache = make([]byte, 1024*1024)
+	var data []byte
+	// read the object
+	for {
+		n, err := object.Read(objectCache)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		data = append(data, objectCache[:n]...)
+		if err == io.EOF {
+			break
+		}
+	}
+
+	objectID := connection.MysqlMgr.MySQL.FindObject(objectName).ObjectID
+	if objectID == "" {
+		return fmt.Errorf("object isn't initated")
+	}
+	// write object's part
+	oid := uploadID + ":" + partID + ":" + objectID
+	err = connection.CephMgr.Ceph.WriteObject(connection.BucketData, oid, data, 0)
+	defer rollback(func() { rollbackSaveObject(oid) })
+	metadata, err := json.Marshal(&metadataM)
+	if err != nil {
+		return
+	}
+	err = connection.MysqlMgr.MySQL.SavePartObjectTransaction(objectID, uploadID, partID, string(metadata))
+	return
 }

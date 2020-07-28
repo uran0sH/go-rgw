@@ -3,6 +3,7 @@ package router
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"go-rgw/allocator"
 	"go-rgw/session"
 	"net/http"
 	"strings"
@@ -53,6 +54,43 @@ func getObject(c *gin.Context) {
 	}
 }
 
-func initMultipartUpload(c *gin.Context) {
+func createMultipartUpload(c *gin.Context) {
+	bucketName := c.Param("bucket")
+	objectName := c.Param("object")
+	err := session.SaveObjectName(objectName, bucketName)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "create failed")
+	}
+	uploadID := allocator.AllocateUUID()
+	c.JSON(http.StatusOK, gin.H{
+		"uploadID": uploadID,
+	})
+}
+
+func uploadPart(c *gin.Context) {
+	partID := c.Query("PartNumber")
+	uploadID := c.Query("UploadId")
+	hash := c.GetHeader("Content-MD5")
+	objectName := c.Param("object")
+	body := c.Request.Body
+	var metadata = make(map[string][]string)
+	for key, value := range c.Request.Header {
+		if strings.HasPrefix(key, metaPrefix) {
+			metadata[key] = value
+		}
+	}
+	err := session.SaveObjectPart(objectName, partID, uploadID, hash, body, metadata)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "save failed")
+		return
+	}
+	c.Status(http.StatusOK)
+}
+
+func completeMultipartUpload(c *gin.Context) {
+
+}
+
+func abortMultipartUpload(c *gin.Context) {
 
 }

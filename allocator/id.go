@@ -13,10 +13,10 @@ func AllocateObjectID(bucketID, clusterID string) string {
 	return objectID
 }
 
-// AllocateBucketID
-func AllocateBucketID() string {
-	bucketID := uuid.New()
-	return bucketID.String()
+// AllocateUUID
+func AllocateUUID() string {
+	id := uuid.New()
+	return id.String()
 }
 
 func AllocateMetadataID(objectID string) string {
