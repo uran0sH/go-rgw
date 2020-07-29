@@ -56,11 +56,9 @@ type ObjectMetadata struct {
 	Metadata   string
 }
 
-// oid is UploadID:PartID:ObjectID
-type MultipartObject struct {
-	ObjectID string
-	PartID   string
-	UploadID string
+type ObjectPart struct {
+	ObjectID string `gorm:"primary_key"`
+	PartsID  string
 }
 
 func NewMySQL(user, password, ipAddr, name, charset string) *MySQL {
@@ -141,8 +139,8 @@ func (m *MySQL) FindUser(username string) User {
 	return u
 }
 
-func (m *MySQL) CreateObject(objectName string, oid string) error {
-	object := Object{ObjectName: objectName, ObjectID: oid}
+func (m *MySQL) CreateObject(objectName string, oid string, isMultipart bool) error {
+	object := Object{ObjectName: objectName, ObjectID: oid, IsMultipart: isMultipart}
 	return m.Database.Create(&object).Error
 }
 
@@ -160,6 +158,14 @@ func (m *MySQL) UpdateObject(objectName, oid string) {
 	m.Database.Model(&Object{}).Where("object_name = ?", objectName).Update("object_id", oid)
 }
 
+func (m *MySQL) DeleteObjectMetadata(metaID string) {
+	m.Database.Where("metadata_id = ?", metaID).Delete(&ObjectMetadata{})
+}
+
+func (m *MySQL) DeleteObjectAcl(aclID string) {
+	m.Database.Where("acl_id = ?", aclID).Delete(&ObjectACL{})
+}
+
 // save the acl, metadata and oid
 func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata string, acl string) (err error) {
 	tx := m.Database.Begin()
@@ -175,7 +181,7 @@ func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata st
 
 	var tempObj Object
 	if tx.Where("object_name = ?", objectName).First(&tempObj); tempObj == (Object{}) {
-		object := Object{ObjectName: objectName, ObjectID: oid}
+		object := Object{ObjectName: objectName, ObjectID: oid, IsMultipart: false}
 		if err = tx.Create(&object).Error; err != nil {
 			return
 		}
@@ -210,7 +216,7 @@ func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata st
 }
 
 // save multipartObject && metadata
-func (m *MySQL) SavePartObjectTransaction(objectID, uploadID, partID, metadata string) (err error) {
+func (m *MySQL) SavePartObjectTransaction(partObjectName, partObjectID, metadata string) (err error) {
 	tx := m.Database.Begin()
 
 	defer func() {
@@ -218,15 +224,22 @@ func (m *MySQL) SavePartObjectTransaction(objectID, uploadID, partID, metadata s
 			tx.Rollback()
 		}
 	}()
-	multi := MultipartObject{ObjectID: objectID, UploadID: uploadID, PartID: partID}
-	if err = tx.Create(&multi).Error; err != nil {
+
+	partObject := Object{ObjectName: partObjectName, ObjectID: partObjectID, IsMultipart: false}
+	if err = tx.Create(&partObject).Error; err != nil {
 		return
 	}
-	oid := uploadID + ":" + partID + ":" + objectID + "-metadata"
-	meta := ObjectMetadata{MetadataID: oid, Metadata: metadata}
-	if err = tx.Create(&meta).Error; err != nil {
+	metadataID := partObjectID + "-metadata"
+	objectMetadata := ObjectMetadata{MetadataID: metadataID, Metadata: metadata}
+	if err = tx.Create(&objectMetadata).Error; err != nil {
 		return
 	}
+
 	tx.Commit()
 	return nil
+}
+
+func (m *MySQL) SaveObjectPart(objectID string, partsID string) {
+	objectPart := ObjectPart{ObjectID: objectID, PartsID: partsID}
+	m.Database.Create(&objectPart)
 }

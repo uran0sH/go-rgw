@@ -66,7 +66,7 @@ func SaveObject(objectName, bucketName string, object io.ReadCloser, hash string
 	}
 	defer rollback(func() { rollbackSaveObject(oid) })
 	// remove the existed object
-	objectID := connection.MysqlMgr.MySQL.FindObject(objectName).ObjectID
+	objectID := connection.MysqlMgr.MySQL.FindObject(bucketID + "-" + objectName).ObjectID
 	if objectID != "" {
 		err = connection.CephMgr.Ceph.DeleteObject(connection.BucketData, objectID)
 		if err != nil {
@@ -117,8 +117,11 @@ func GetObject(bucketName, objectName string) ([]byte, error) {
 	return data[:n], err
 }
 
+// cache objectName->partObjectName
+var partsCache = make(map[string][]string, 100)
+
 // save objectName->objectID
-func SaveObjectName(objectName, bucketName string) error {
+func SaveObjectName(objectName, bucketName string, isMultipart bool) error {
 	clusterID, err := allocator.GetClusterID()
 	if err != nil {
 		return err
@@ -128,11 +131,11 @@ func SaveObjectName(objectName, bucketName string) error {
 		return fmt.Errorf("bucket doesn't exist")
 	}
 	oid := allocator.AllocateObjectID(bucketID, clusterID)
-	return connection.MysqlMgr.MySQL.CreateObject(objectName, oid)
+	return connection.MysqlMgr.MySQL.CreateObject(bucketID+"-"+objectName, oid, isMultipart)
 }
 
 // save one object's part
-func SaveObjectPart(objectName, partID, uploadID, hash string, object io.ReadCloser, metadataM map[string][]string) (err error) {
+func SaveObjectPart(objectName, bucketName, partID, uploadID, hash string, object io.ReadCloser, metadataM map[string][]string) (err error) {
 	//rollback
 	rollback := func(rollback func()) {
 		if err != nil {
@@ -154,18 +157,59 @@ func SaveObjectPart(objectName, partID, uploadID, hash string, object io.ReadClo
 		}
 	}
 
-	objectID := connection.MysqlMgr.MySQL.FindObject(objectName).ObjectID
-	if objectID == "" {
-		return fmt.Errorf("object isn't initated")
+	clusterID, err := allocator.GetClusterID()
+	if err != nil {
+		return err
 	}
+	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	if bucketID == "" {
+		return fmt.Errorf("bucket doesn't exist")
+	}
+	name := bucketID + "-" + objectName
+	objectID := connection.MysqlMgr.MySQL.FindObject(name).ObjectID
+	partOid := allocator.AllocateObjectID(bucketID, clusterID)
 	// write object's part
-	oid := uploadID + ":" + partID + ":" + objectID
-	err = connection.CephMgr.Ceph.WriteObject(connection.BucketData, oid, data, 0)
-	defer rollback(func() { rollbackSaveObject(oid) })
+	err = connection.CephMgr.Ceph.WriteObject(connection.BucketData, partOid, data, 0)
+	defer rollback(func() { rollbackSaveObject(partOid) })
 	metadata, err := json.Marshal(&metadataM)
 	if err != nil {
 		return
 	}
-	err = connection.MysqlMgr.MySQL.SavePartObjectTransaction(objectID, uploadID, partID, string(metadata))
+	partObjectName := uploadID + ":" + partID + ":" + objectID
+	err = connection.MysqlMgr.MySQL.SavePartObjectTransaction(partObjectName, partOid, string(metadata))
+	partsCache[name] = append(partsCache[name], partObjectName)
 	return
+}
+
+func CompleteMultipartUpload(bucketName, objectName, uploadID string, partIDs []string) (err error) {
+	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	name := bucketID + "-" + objectName
+	objectID := connection.MysqlMgr.MySQL.FindObject(name).ObjectID
+	var parts []string
+	for _, id := range partIDs {
+		part := uploadID + ":" + id + ":" + objectID
+		parts = append(parts, part)
+	}
+	partsID, err := json.Marshal(&parts)
+	if err != nil {
+		return
+	}
+	connection.MysqlMgr.MySQL.SaveObjectPart(objectID, string(partsID))
+	delete(partsCache, name)
+	return nil
+}
+
+func AbortMultipartUpload(bucketName, objectName, uploadID string) error {
+	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	name := bucketID + "-" + objectName
+	objectID := connection.MysqlMgr.MySQL.FindObject(name).ObjectID
+	connection.MysqlMgr.MySQL.DeleteObject(objectID)
+	connection.MysqlMgr.MySQL.DeleteObjectMetadata(objectID + "-metadata")
+	connection.MysqlMgr.MySQL.DeleteObjectAcl(objectID + "-acl")
+	for _, partName := range partsCache[name] {
+		connection.MysqlMgr.MySQL.DeleteObject(partName)
+		connection.MysqlMgr.MySQL.DeleteObjectMetadata(partName + "-metadata")
+	}
+	delete(partsCache, name)
+	return nil
 }

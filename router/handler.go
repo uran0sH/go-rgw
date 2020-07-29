@@ -1,10 +1,12 @@
 package router
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"go-rgw/allocator"
 	"go-rgw/session"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -57,7 +59,7 @@ func getObject(c *gin.Context) {
 func createMultipartUpload(c *gin.Context) {
 	bucketName := c.Param("bucket")
 	objectName := c.Param("object")
-	err := session.SaveObjectName(objectName, bucketName)
+	err := session.SaveObjectName(objectName, bucketName, true)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "create failed")
 	}
@@ -71,26 +73,81 @@ func uploadPart(c *gin.Context) {
 	partID := c.Query("PartNumber")
 	uploadID := c.Query("UploadId")
 	hash := c.GetHeader("Content-MD5")
+	bucketName := c.Param("bucket")
 	objectName := c.Param("object")
 	body := c.Request.Body
+
 	var metadata = make(map[string][]string)
 	for key, value := range c.Request.Header {
 		if strings.HasPrefix(key, metaPrefix) {
 			metadata[key] = value
 		}
 	}
-	err := session.SaveObjectPart(objectName, partID, uploadID, hash, body, metadata)
+
+	err := session.SaveObjectPart(objectName, bucketName, partID, uploadID, hash, body, metadata)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "save failed")
 		return
 	}
+	c.Header("ETag", hash)
 	c.Status(http.StatusOK)
 }
 
-func completeMultipartUpload(c *gin.Context) {
+type Part struct {
+	PartID string
+	ETag   string
+}
 
+type CompleteMultipart struct {
+	parts []Part
+}
+
+func completeMultipartUpload(c *gin.Context) {
+	uploadID := c.Query("UploadId")
+	bucketName := c.Param("bucket")
+	objectNanme := c.Param("object")
+	body := c.Request.Body
+	var cache = make([]byte, 256)
+	var data []byte
+	for {
+		n, err := body.Read(cache)
+		if err != nil && err != io.EOF {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		data = append(data, cache[:n]...)
+		if err == io.EOF {
+			break
+		}
+	}
+	var multipart CompleteMultipart
+	err := json.Unmarshal(data, &multipart)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	var partID []string
+	for _, value := range multipart.parts {
+		partID = append(partID, value.PartID)
+	}
+	err = session.CompleteMultipartUpload(bucketName, objectNanme, uploadID, partID)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	c.Status(http.StatusOK)
+	return
 }
 
 func abortMultipartUpload(c *gin.Context) {
-
+	uploadID := c.Query("UploadId")
+	bucketName := c.Param("bucket")
+	objectName := c.Param("object")
+	err := session.AbortMultipartUpload(bucketName, objectName, uploadID)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	c.Status(http.StatusOK)
+	return
 }
