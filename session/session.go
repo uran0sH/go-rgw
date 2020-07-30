@@ -82,7 +82,7 @@ func SaveObject(objectName, bucketName string, object io.ReadCloser, hash string
 	}
 	// object name
 	name := bucketID + "-" + objectName
-	err = connection.MysqlMgr.MySQL.SaveObjectTransaction(name, oid, string(metadata), acl)
+	err = connection.MysqlMgr.MySQL.SaveObjectTransaction(name, oid, string(metadata), acl, false)
 	if err != nil {
 		return
 	}
@@ -127,10 +127,27 @@ type PartsCache struct {
 	mutex         sync.Mutex
 }
 
-var partsCache PartsCache
+var partsCache = PartsCache{
+	partsCacheMap: make(map[string][]string, 100),
+}
 
-// save objectName->objectID
-func SaveObjectName(objectName, bucketName string, isMultipart bool) error {
+type ObjectCache struct {
+	objectCacheMap map[string]*Object
+	mutex          sync.Mutex
+}
+
+type Object struct {
+	objectID string
+	metadata string
+	acl      string
+}
+
+var objectCache = ObjectCache{
+	objectCacheMap: make(map[string]*Object, 10),
+}
+
+// save objectName->objectID & metadata & acl
+func CreateMultipartUpload(objectName, bucketName, metadata, acl string, isMultipart bool) error {
 	clusterID, err := allocator.GetClusterID()
 	if err != nil {
 		return err
@@ -140,7 +157,17 @@ func SaveObjectName(objectName, bucketName string, isMultipart bool) error {
 		return fmt.Errorf("bucket doesn't exist")
 	}
 	oid := allocator.AllocateObjectID(bucketID, clusterID)
-	return connection.MysqlMgr.MySQL.CreateObject(bucketID+"-"+objectName, oid, isMultipart)
+	name := bucketID + "-" + objectName
+
+	objectCache.mutex.Lock()
+	objectCache.objectCacheMap[name] = &Object{
+		objectID: oid,
+		metadata: metadata,
+		acl:      acl,
+	}
+	objectCache.mutex.Unlock()
+
+	return nil
 }
 
 // save one object's part
@@ -152,15 +179,15 @@ func SaveObjectPart(objectName, bucketName, partID, uploadID, hash string, objec
 		}
 	}
 
-	var objectCache = make([]byte, 1024*1024)
+	var cache = make([]byte, 1024*1024)
 	var data []byte
 	// read the object
 	for {
-		n, err := object.Read(objectCache)
+		n, err := object.Read(cache)
 		if err != nil && err != io.EOF {
 			return err
 		}
-		data = append(data, objectCache[:n]...)
+		data = append(data, cache[:n]...)
 		if err == io.EOF {
 			break
 		}
@@ -175,8 +202,13 @@ func SaveObjectPart(objectName, bucketName, partID, uploadID, hash string, objec
 		return fmt.Errorf("bucket doesn't exist")
 	}
 	name := bucketID + "-" + objectName
-	objectID := connection.MysqlMgr.MySQL.FindObject(name).ObjectID
+	objectTmp, ok := objectCache.objectCacheMap[name]
+	if !ok {
+		return fmt.Errorf("object cache error")
+	}
+	objectID := objectTmp.objectID
 	partOid := allocator.AllocateObjectID(bucketID, clusterID)
+
 	// write object's part
 	err = connection.CephMgr.Ceph.WriteObject(connection.BucketData, partOid, data, 0)
 	defer rollback(func() { rollbackSaveObject(partOid) })
@@ -189,40 +221,73 @@ func SaveObjectPart(objectName, bucketName, partID, uploadID, hash string, objec
 	// concurrent upload
 	partsCache.mutex.Lock()
 	partsCache.partsCacheMap[name] = append(partsCache.partsCacheMap[name], partObjectName)
-	partsCache.mutex.Lock()
+	partsCache.mutex.Unlock()
 	return
 }
 
 func CompleteMultipartUpload(bucketName, objectName, uploadID string, partIDs []string) (err error) {
 	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
 	name := bucketID + "-" + objectName
-	objectID := connection.MysqlMgr.MySQL.FindObject(name).ObjectID
-	var parts []string
-	for _, id := range partIDs {
-		part := uploadID + ":" + id + ":" + objectID
-		_, ok := partsCache.partsCacheMap[part]
-		if !ok {
-			return fmt.Errorf("partID error")
-		}
-		parts = append(parts, part)
+
+	objectCache.mutex.Lock()
+	object, ok := objectCache.objectCacheMap[name]
+	if !ok {
+		return fmt.Errorf("objectID doesn't exist")
 	}
-	partsID, err := json.Marshal(&parts)
+	objectID := object.objectID
+	metadata := object.metadata
+	acl := object.acl
+	delete(objectCache.objectCacheMap, name)
+	objectCache.mutex.Unlock()
+	err = connection.MysqlMgr.MySQL.SaveObjectTransaction(name, objectID, metadata, acl, true)
 	if err != nil {
 		return
 	}
-	connection.MysqlMgr.MySQL.SaveObjectPart(objectID, string(partsID))
+
+	var parts []string
+	// check
+	for _, id := range partIDs {
+		part := uploadID + ":" + id + ":" + objectID
+		tempPart, ok := partsCache.partsCacheMap[name]
+		if !ok {
+			return fmt.Errorf("object name error")
+		}
+		isExist := false
+		for i, v := range tempPart {
+			if v == part {
+				isExist = true
+				partsCache.partsCacheMap[name] = append(partsCache.partsCacheMap[name][:i],
+					partsCache.partsCacheMap[name][i+1:]...)
+				break
+			}
+		}
+		if !isExist {
+			return fmt.Errorf("part doesn't exist")
+		}
+		partID := connection.MysqlMgr.MySQL.FindObject(part).ObjectID
+		parts = append(parts, partID)
+	}
+	err = connection.MysqlMgr.MySQL.SaveObjectPartBatch(objectID, parts[:len(parts)])
+	if err != nil {
+		return
+	}
+	partsCache.mutex.Lock()
 	delete(partsCache.partsCacheMap, name)
+	partsCache.mutex.Unlock()
 	return nil
 }
 
 func AbortMultipartUpload(bucketName, objectName, uploadID string) error {
 	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
 	name := bucketID + "-" + objectName
-	objectID := connection.MysqlMgr.MySQL.FindObject(name).ObjectID
 
-	go gc.WriteDeleteObjectChan(objectID)
-	go gc.WriteDeleteMetadataChan(objectID + "-metadata")
-	go gc.WriteDeleteAclChan(objectID + "-acl")
+	objectCache.mutex.Lock()
+	_, ok := objectCache.objectCacheMap[name]
+	if !ok {
+		return fmt.Errorf("objectID doesn't exist")
+	}
+	delete(objectCache.objectCacheMap, name)
+	objectCache.mutex.Unlock()
 
 	for _, partName := range partsCache.partsCacheMap[name] {
 		partID := connection.MysqlMgr.MySQL.FindObject(partName).ObjectID
@@ -231,6 +296,8 @@ func AbortMultipartUpload(bucketName, objectName, uploadID string) error {
 		go gc.WriteDeleteMetadataChan(partID + "-metadata")
 	}
 
+	partsCache.mutex.Lock()
 	delete(partsCache.partsCacheMap, name)
+	partsCache.mutex.Unlock()
 	return nil
 }

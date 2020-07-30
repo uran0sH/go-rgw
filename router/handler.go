@@ -59,7 +59,17 @@ func getObject(c *gin.Context) {
 func createMultipartUpload(c *gin.Context) {
 	bucketName := c.Param("bucket")
 	objectName := c.Param("object")
-	err := session.SaveObjectName(objectName, bucketName, true)
+	var metadataMap = make(map[string][]string)
+	for key, value := range c.Request.Header {
+		if strings.HasPrefix(key, metaPrefix) {
+			metadataMap[key] = value
+		}
+	}
+	metadata, err := json.Marshal(metadataMap)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "json marshal error")
+	}
+	err = session.CreateMultipartUpload(objectName, bucketName, string(metadata), "", true)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "create failed")
 	}
@@ -91,15 +101,16 @@ func uploadPart(c *gin.Context) {
 	}
 	c.Header("ETag", hash)
 	c.Status(http.StatusOK)
+	return
 }
 
 type Part struct {
-	PartID string
-	ETag   string
+	PartID string `json:"PartID"`
+	ETag   string `json:"ETag"`
 }
 
 type CompleteMultipart struct {
-	parts []Part
+	Parts []Part
 }
 
 func completeMultipartUpload(c *gin.Context) {
@@ -127,7 +138,7 @@ func completeMultipartUpload(c *gin.Context) {
 		return
 	}
 	var partID []string
-	for _, value := range multipart.parts {
+	for _, value := range multipart.Parts {
 		partID = append(partID, value.PartID)
 	}
 	err = session.CompleteMultipartUpload(bucketName, objectNanme, uploadID, partID)

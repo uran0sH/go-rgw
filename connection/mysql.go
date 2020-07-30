@@ -57,8 +57,8 @@ type ObjectMetadata struct {
 }
 
 type ObjectPart struct {
-	ObjectID string `gorm:"primary_key"`
-	PartsID  string
+	ObjectID string
+	PartID   string
 }
 
 func NewMySQL(user, password, ipAddr, name, charset string) *MySQL {
@@ -90,6 +90,7 @@ func (m *MySQL) Init() error {
 	db.AutoMigrate(&ObjectACL{})
 	db.AutoMigrate(&ObjectMetadata{})
 	db.AutoMigrate(&BucketACL{})
+	db.AutoMigrate(&ObjectPart{})
 
 	m.Database = db
 	return nil
@@ -167,7 +168,7 @@ func (m *MySQL) DeleteObjectAcl(aclID string) error {
 }
 
 // save the acl, metadata and oid
-func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata string, acl string) (err error) {
+func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata string, acl string, isMultipart bool) (err error) {
 	tx := m.Database.Begin()
 
 	defer func() {
@@ -181,7 +182,7 @@ func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata st
 
 	var tempObj Object
 	if tx.Where("object_name = ?", objectName).First(&tempObj); tempObj == (Object{}) {
-		object := Object{ObjectName: objectName, ObjectID: oid, IsMultipart: false}
+		object := Object{ObjectName: objectName, ObjectID: oid, IsMultipart: isMultipart}
 		if err = tx.Create(&object).Error; err != nil {
 			return
 		}
@@ -239,7 +240,14 @@ func (m *MySQL) SavePartObjectTransaction(partObjectName, partObjectID, metadata
 	return nil
 }
 
-func (m *MySQL) SaveObjectPart(objectID string, partsID string) {
-	objectPart := ObjectPart{ObjectID: objectID, PartsID: partsID}
-	m.Database.Create(&objectPart)
+func (m *MySQL) SaveObjectPartBatch(objectID string, partsID []string) error {
+	sql := "INSERT INTO `object_parts` (`object_id`, `part_id`) VALUES"
+	for i, value := range partsID {
+		if len(partsID)-1 == i {
+			sql += fmt.Sprintf("('%s', '%s');", objectID, value)
+		} else {
+			sql += fmt.Sprintf("('%s', '%s'),", objectID, value)
+		}
+	}
+	return m.Database.Exec(sql).Error
 }
