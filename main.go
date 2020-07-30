@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"go-rgw/connection"
+	"go-rgw/gc"
 	"go-rgw/router"
 )
 
@@ -23,6 +24,7 @@ func main() {
 		fmt.Println(err)
 	}
 	connection.InitCephManager(ceph)
+	gc.Init()
 	r := router.SetupRouter()
 	if err := r.Run(":8080"); err != nil {
 		fmt.Println(err)

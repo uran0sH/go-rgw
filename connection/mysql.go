@@ -144,8 +144,8 @@ func (m *MySQL) CreateObject(objectName string, oid string, isMultipart bool) er
 	return m.Database.Create(&object).Error
 }
 
-func (m *MySQL) DeleteObject(objectName string) {
-	m.Database.Where("object_name = ?", objectName).Delete(Object{})
+func (m *MySQL) DeleteObject(objectName string) error {
+	return m.Database.Where("object_name = ?", objectName).Delete(Object{}).Error
 }
 
 func (m *MySQL) FindObject(objectName string) Object {
@@ -158,12 +158,12 @@ func (m *MySQL) UpdateObject(objectName, oid string) {
 	m.Database.Model(&Object{}).Where("object_name = ?", objectName).Update("object_id", oid)
 }
 
-func (m *MySQL) DeleteObjectMetadata(metaID string) {
-	m.Database.Where("metadata_id = ?", metaID).Delete(&ObjectMetadata{})
+func (m *MySQL) DeleteObjectMetadata(metaID string) error {
+	return m.Database.Where("metadata_id = ?", metaID).Delete(&ObjectMetadata{}).Error
 }
 
-func (m *MySQL) DeleteObjectAcl(aclID string) {
-	m.Database.Where("acl_id = ?", aclID).Delete(&ObjectACL{})
+func (m *MySQL) DeleteObjectAcl(aclID string) error {
+	return m.Database.Where("acl_id = ?", aclID).Delete(&ObjectACL{}).Error
 }
 
 // save the acl, metadata and oid

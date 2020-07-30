@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"go-rgw/allocator"
 	"go-rgw/connection"
+	"go-rgw/gc"
 	"io"
+	"sync"
 )
 
 func SaveObject(objectName, bucketName string, object io.ReadCloser, hash string, metadataM map[string][]string,
@@ -118,7 +120,14 @@ func GetObject(bucketName, objectName string) ([]byte, error) {
 }
 
 // cache objectName->partObjectName
-var partsCache = make(map[string][]string, 100)
+// var partsCache = make(map[string][]string, 100)
+
+type PartsCache struct {
+	partsCacheMap map[string][]string
+	mutex         sync.Mutex
+}
+
+var partsCache PartsCache
 
 // save objectName->objectID
 func SaveObjectName(objectName, bucketName string, isMultipart bool) error {
@@ -177,7 +186,10 @@ func SaveObjectPart(objectName, bucketName, partID, uploadID, hash string, objec
 	}
 	partObjectName := uploadID + ":" + partID + ":" + objectID
 	err = connection.MysqlMgr.MySQL.SavePartObjectTransaction(partObjectName, partOid, string(metadata))
-	partsCache[name] = append(partsCache[name], partObjectName)
+	// concurrent upload
+	partsCache.mutex.Lock()
+	partsCache.partsCacheMap[name] = append(partsCache.partsCacheMap[name], partObjectName)
+	partsCache.mutex.Lock()
 	return
 }
 
@@ -188,6 +200,10 @@ func CompleteMultipartUpload(bucketName, objectName, uploadID string, partIDs []
 	var parts []string
 	for _, id := range partIDs {
 		part := uploadID + ":" + id + ":" + objectID
+		_, ok := partsCache.partsCacheMap[part]
+		if !ok {
+			return fmt.Errorf("partID error")
+		}
 		parts = append(parts, part)
 	}
 	partsID, err := json.Marshal(&parts)
@@ -195,7 +211,7 @@ func CompleteMultipartUpload(bucketName, objectName, uploadID string, partIDs []
 		return
 	}
 	connection.MysqlMgr.MySQL.SaveObjectPart(objectID, string(partsID))
-	delete(partsCache, name)
+	delete(partsCache.partsCacheMap, name)
 	return nil
 }
 
@@ -203,13 +219,18 @@ func AbortMultipartUpload(bucketName, objectName, uploadID string) error {
 	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
 	name := bucketID + "-" + objectName
 	objectID := connection.MysqlMgr.MySQL.FindObject(name).ObjectID
-	connection.MysqlMgr.MySQL.DeleteObject(objectID)
-	connection.MysqlMgr.MySQL.DeleteObjectMetadata(objectID + "-metadata")
-	connection.MysqlMgr.MySQL.DeleteObjectAcl(objectID + "-acl")
-	for _, partName := range partsCache[name] {
-		connection.MysqlMgr.MySQL.DeleteObject(partName)
-		connection.MysqlMgr.MySQL.DeleteObjectMetadata(partName + "-metadata")
+
+	go gc.WriteDeleteObjectChan(objectID)
+	go gc.WriteDeleteMetadataChan(objectID + "-metadata")
+	go gc.WriteDeleteAclChan(objectID + "-acl")
+
+	for _, partName := range partsCache.partsCacheMap[name] {
+		partID := connection.MysqlMgr.MySQL.FindObject(partName).ObjectID
+		go gc.WriteDeleteObjectChan(partID)
+		go gc.WriteDeleteObjectDBChan(partName)
+		go gc.WriteDeleteMetadataChan(partID + "-metadata")
 	}
-	delete(partsCache, name)
+
+	delete(partsCache.partsCacheMap, name)
 	return nil
 }
