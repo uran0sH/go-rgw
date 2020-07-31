@@ -242,7 +242,7 @@ func (m *MySQL) SavePartObjectTransaction(partObjectName, partObjectID, metadata
 }
 
 func (m *MySQL) SaveObjectPartBatch(objectID string, parts map[string]string) error {
-	sql := "INSERT INTO `object_parts` (`object_id`, `part_id`, `object_part_id`) VALUES"
+	sql := "INSERT INTO `object_parts` (`object_id`, `part_id`, `part_object_id`) VALUES"
 	count := 0
 	length := len(parts) - 1
 	for key, value := range parts {

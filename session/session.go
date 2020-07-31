@@ -313,8 +313,9 @@ func AbortMultipartUpload(bucketName, objectName, uploadID string) error {
 func readOneObject(oid string) ([]byte, error) {
 	var data []byte
 	datacache := make([]byte, 1024*1024)
+	var offset uint64 = 0
 	for {
-		n, err := connection.CephMgr.Ceph.ReadObject(connection.BucketData, oid, datacache, 0)
+		n, err := connection.CephMgr.Ceph.ReadObject(connection.BucketData, oid, datacache, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -322,6 +323,7 @@ func readOneObject(oid string) ([]byte, error) {
 			break
 		}
 		data = append(data, datacache[:n]...)
+		offset = uint64(n)
 	}
 	return data, nil
 }
@@ -332,8 +334,9 @@ func readMultipartObject(oid string) ([]byte, error) {
 	datacache := make([]byte, 1024*1024)
 	for _, o := range objectParts {
 		var partData []byte
+		var offset uint64 = 0
 		for {
-			n, err := connection.CephMgr.Ceph.ReadObject(connection.BucketData, o.PartObjectID, datacache, 0)
+			n, err := connection.CephMgr.Ceph.ReadObject(connection.BucketData, o.PartObjectID, datacache, offset)
 			if err != nil {
 				return nil, err
 			}
@@ -341,6 +344,7 @@ func readMultipartObject(oid string) ([]byte, error) {
 				break
 			}
 			partData = append(partData, datacache[:n]...)
+			offset = uint64(n)
 		}
 		data = append(data, partData...)
 	}
