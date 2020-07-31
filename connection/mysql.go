@@ -57,8 +57,9 @@ type ObjectMetadata struct {
 }
 
 type ObjectPart struct {
-	ObjectID string
-	PartID   string
+	ObjectID     string `gorm:"primary_key;auto_increment:false"`
+	PartID       string `gorm:"primary_key;auto_increment:false"`
+	PartObjectID string
 }
 
 func NewMySQL(user, password, ipAddr, name, charset string) *MySQL {
@@ -240,14 +241,23 @@ func (m *MySQL) SavePartObjectTransaction(partObjectName, partObjectID, metadata
 	return nil
 }
 
-func (m *MySQL) SaveObjectPartBatch(objectID string, partsID []string) error {
-	sql := "INSERT INTO `object_parts` (`object_id`, `part_id`) VALUES"
-	for i, value := range partsID {
-		if len(partsID)-1 == i {
-			sql += fmt.Sprintf("('%s', '%s');", objectID, value)
+func (m *MySQL) SaveObjectPartBatch(objectID string, parts map[string]string) error {
+	sql := "INSERT INTO `object_parts` (`object_id`, `part_id`, `object_part_id`) VALUES"
+	count := 0
+	length := len(parts) - 1
+	for key, value := range parts {
+		if length == count {
+			sql += fmt.Sprintf("('%s', '%s', '%s');", objectID, key, value)
 		} else {
-			sql += fmt.Sprintf("('%s', '%s'),", objectID, value)
+			sql += fmt.Sprintf("('%s', '%s', '%s'),", objectID, key, value)
+			count++
 		}
 	}
 	return m.Database.Exec(sql).Error
+}
+
+func (m *MySQL) FindObjectPart(objectID string) []ObjectPart {
+	var objectParts []ObjectPart
+	m.Database.Where("object_id = ?", objectID).Order("part_id asc").Find(&objectParts)
+	return objectParts
 }

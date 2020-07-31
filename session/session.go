@@ -107,16 +107,21 @@ func CreateBucket(bucketName string) {
 	connection.MysqlMgr.MySQL.CreateBucket(bucketName, bucketID)
 }
 
-func GetObject(bucketName, objectName string) ([]byte, error) {
+func GetObject(bucketName, objectName string) (data []byte, err error) {
 	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
 	name := bucketID + "-" + objectName
-	oid := connection.MysqlMgr.MySQL.FindObject(name).ObjectID
-	if oid == "" {
-		return nil, fmt.Errorf("the objectName doesn't exist")
+	object := connection.MysqlMgr.MySQL.FindObject(name)
+	oid := object.ObjectID
+	isMultipart := object.IsMultipart
+	if !isMultipart {
+		data, err = readOneObject(oid)
+	} else {
+		data, err = readMultipartObject(oid)
 	}
-	data := make([]byte, 1024*1024)
-	n, err := connection.CephMgr.Ceph.ReadObject(connection.BucketData, oid, data, 0)
-	return data[:n], err
+	if err != nil {
+		return nil, err
+	}
+	return data, err
 }
 
 // cache objectName->partObjectName
@@ -244,7 +249,9 @@ func CompleteMultipartUpload(bucketName, objectName, uploadID string, partIDs []
 		return
 	}
 
-	var parts []string
+	// key partID
+	// value partObjectID
+	var parts = make(map[string]string)
 	// check
 	for _, id := range partIDs {
 		part := uploadID + ":" + id + ":" + objectID
@@ -264,10 +271,10 @@ func CompleteMultipartUpload(bucketName, objectName, uploadID string, partIDs []
 		if !isExist {
 			return fmt.Errorf("part doesn't exist")
 		}
-		partID := connection.MysqlMgr.MySQL.FindObject(part).ObjectID
-		parts = append(parts, partID)
+		partObjectID := connection.MysqlMgr.MySQL.FindObject(part).ObjectID
+		parts[id] = partObjectID
 	}
-	err = connection.MysqlMgr.MySQL.SaveObjectPartBatch(objectID, parts[:len(parts)])
+	err = connection.MysqlMgr.MySQL.SaveObjectPartBatch(objectID, parts)
 	if err != nil {
 		return
 	}
@@ -300,4 +307,42 @@ func AbortMultipartUpload(bucketName, objectName, uploadID string) error {
 	delete(partsCache.partsCacheMap, name)
 	partsCache.mutex.Unlock()
 	return nil
+}
+
+// read one object from ceph
+func readOneObject(oid string) ([]byte, error) {
+	var data []byte
+	datacache := make([]byte, 1024*1024)
+	for {
+		n, err := connection.CephMgr.Ceph.ReadObject(connection.BucketData, oid, datacache, 0)
+		if err != nil {
+			return nil, err
+		}
+		if n == 0 {
+			break
+		}
+		data = append(data, datacache[:n]...)
+	}
+	return data, nil
+}
+
+func readMultipartObject(oid string) ([]byte, error) {
+	objectParts := connection.MysqlMgr.MySQL.FindObjectPart(oid)
+	var data []byte
+	datacache := make([]byte, 1024*1024)
+	for _, o := range objectParts {
+		var partData []byte
+		for {
+			n, err := connection.CephMgr.Ceph.ReadObject(connection.BucketData, o.PartObjectID, datacache, 0)
+			if err != nil {
+				return nil, err
+			}
+			if n == 0 {
+				break
+			}
+			partData = append(partData, datacache[:n]...)
+		}
+		data = append(data, partData...)
+	}
+	return data, nil
 }
