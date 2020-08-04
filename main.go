@@ -1,16 +1,24 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"go-rgw/connection"
 	"go-rgw/gc"
 	"go-rgw/router"
 )
 
+var defaultConfig = "./application.yml"
+
 func main() {
-	mysql := connection.NewMySQL("root", "root", "118.31.64.83:3306", "ceph",
+	configFile := flag.String("config", defaultConfig, "configuration filename")
+	config, err := readConfig(*configFile)
+	if err != nil {
+		fmt.Println(err)
+	}
+	mysql := connection.NewMySQL(config.Database.Username, config.Database.Password, config.Database.Address, config.Database.Name,
 		"utf8mb4")
-	err := mysql.Init()
+	err = mysql.Init()
 	if err != nil {
 		fmt.Println(err)
 	}
