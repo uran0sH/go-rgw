@@ -172,16 +172,20 @@ func (m *MySQL) DeleteObjectAcl(aclID string) error {
 func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata string, acl string, isMultipart bool) (err error) {
 	tx := m.Database.Begin()
 
+	// rollback
 	defer func() {
 		if err != nil && tx != nil {
 			tx.Rollback()
 		}
 	}()
 
+	// get metadataId and aclId
 	metadataID := oid + "-metadata"
 	aclID := oid + "-acl"
 
 	var tempObj Object
+	// if the object has existed, update the objectId, metadata and acl,
+	// or create the object.
 	if tx.Where("object_name = ?", objectName).First(&tempObj); tempObj == (Object{}) {
 		object := Object{ObjectName: objectName, ObjectID: oid, IsMultipart: isMultipart}
 		if err = tx.Create(&object).Error; err != nil {
@@ -203,11 +207,13 @@ func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata st
 		}
 	}
 
+	// save metadata
 	objectMetadata := ObjectMetadata{MetadataID: metadataID, Metadata: metadata}
 	if err = tx.Create(&objectMetadata).Error; err != nil {
 		return
 	}
 
+	// save acl
 	objectACL := ObjectACL{ACLID: aclID, ACL: acl}
 	if err = tx.Create(&objectACL).Error; err != nil {
 		return
