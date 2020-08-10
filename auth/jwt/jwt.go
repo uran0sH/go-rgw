@@ -46,7 +46,8 @@ func ParseToken(tokenString string) (*MyClaims, error) {
 	return nil, errors.New("invalid token")
 }
 
-type JWT struct{}
+type JWT struct {
+}
 
 type User struct {
 	Username string `form:"username" json:"username" binding:"required"`
@@ -130,7 +131,7 @@ func (j *JWT) Auth() func(c *gin.Context) {
 			return
 		}
 		// 将当前请求的username信息保存到请求的上下文c上
-		c.Set("username", mc.UserID)
+		c.Set("userId", mc.UserID)
 		c.Next()
 	}
 }

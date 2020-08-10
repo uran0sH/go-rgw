@@ -102,9 +102,21 @@ func rollbackSaveObject(id string) {
 	}()
 }
 
-func CreateBucket(bucketName string) {
+func CreateBucket(bucketName, userId, defaultAcl string) error {
 	bucketID := allocator.AllocateUUID()
-	connection.MysqlMgr.MySQL.CreateBucket(bucketName, bucketID)
+	if defaultAcl == "" {
+		defaultAcl = private
+	}
+	acl := newAcl(userId, defaultAcl)
+	aclByte, err := json.Marshal(&acl)
+	if err != nil {
+		return err
+	}
+	err = connection.MysqlMgr.MySQL.CreateBucketTransaction(bucketName, bucketID, string(aclByte))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func GetObject(bucketName, objectName string) (data []byte, err error) {

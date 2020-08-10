@@ -37,7 +37,13 @@ func putObject(c *gin.Context) {
 
 func createBucket(c *gin.Context) {
 	bucketName := c.Param("bucket")
-	session.CreateBucket(bucketName)
+	bucketAcl := c.GetHeader("C-Acl")
+	userId := c.GetString("userId")
+	err := session.CreateBucket(bucketName, userId, bucketAcl)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
 	c.Status(http.StatusOK)
 }
 

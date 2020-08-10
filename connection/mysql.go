@@ -122,6 +122,28 @@ func (m *MySQL) ListBuckets(uid string) []Bucket {
 	return buckets
 }
 
+func (m *MySQL) CreateBucketTransaction(name, id, acl string) (err error) {
+	tx := m.Database.Begin()
+
+	defer func() {
+		if err != nil && tx != nil {
+			tx.Rollback()
+		}
+	}()
+
+	bucket := Bucket{BucketID: id, BucketName: name}
+	if err = m.Database.Create(&bucket).Error; err != nil {
+		return
+	}
+	bucketAcl := BucketACL{BucketID: id, ACL: acl}
+	if err = m.Database.Create(&bucketAcl).Error; err != nil {
+		return
+	}
+
+	tx.Commit()
+	return
+}
+
 func (m *MySQL) CreateUser(username, password, uid string) {
 	user := User{UserID: uid, Username: username, Password: password}
 	m.Database.Create(&user)
@@ -266,4 +288,16 @@ func (m *MySQL) FindObjectPart(objectID string) []ObjectPart {
 	var objectParts []ObjectPart
 	m.Database.Where("object_id = ?", objectID).Order("part_id asc").Find(&objectParts)
 	return objectParts
+}
+
+func (m *MySQL) FindBukcetAcl(bucketID string) BucketACL {
+	var bucketAcl BucketACL
+	m.Database.Where("bucket_id = ?", bucketID).First(&bucketAcl)
+	return bucketAcl
+}
+
+func (m *MySQL) FindObjectAcl(objectID string) ObjectACL {
+	var objectAcl ObjectACL
+	m.Database.Where("object_id = ?", objectID).First(&objectAcl)
+	return objectAcl
 }
