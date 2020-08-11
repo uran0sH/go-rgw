@@ -107,6 +107,9 @@ func CreateBucket(bucketName, userId, defaultAcl string) error {
 	if defaultAcl == "" {
 		defaultAcl = private
 	}
+	if userId == "" {
+		userId = "root"
+	}
 	acl := newAcl(userId, defaultAcl)
 	aclByte, err := json.Marshal(&acl)
 	if err != nil {
