@@ -4,3 +4,4 @@ database:
   password: root
   address: 118.31.64.83:3306
   name: ceph
+authorization: jwt

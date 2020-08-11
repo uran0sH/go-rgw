@@ -3,6 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/gin-gonic/gin"
+	"go-rgw/auth"
+	"go-rgw/auth/jwt"
 	"go-rgw/connection"
 	"go-rgw/gc"
 	"go-rgw/router"
@@ -33,7 +36,12 @@ func main() {
 	}
 	connection.InitCephManager(ceph)
 	gc.Init()
-	r := router.SetupRouter()
+	var r *gin.Engine
+	if config.Authorization == "jwt" {
+		r = router.SetupRouter(&jwt.JWT{})
+	} else {
+		r = router.SetupRouter(auth.DefaultAuth{})
+	}
 	if err := r.Run(":8080"); err != nil {
 		fmt.Println(err)
 	}

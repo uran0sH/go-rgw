@@ -30,7 +30,21 @@ func putObject(c *gin.Context) {
 	bucketName := c.Param("bucket")
 	objectName := c.Param("object")
 
-	err := session.SaveObject(objectName, bucketName, body, hash, metadata, "")
+	userId := c.GetString("userId")
+	if userId == "" {
+		userId = "root"
+	}
+
+	ok, err := session.CouldPut(userId, bucketName)
+	if err != nil {
+		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
+		return
+	}
+	if !ok {
+		c.Status(http.StatusForbidden)
+		return
+	}
+	err = session.SaveObject(objectName, bucketName, body, hash, metadata, "")
 	if err != nil {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
 		return

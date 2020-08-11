@@ -5,9 +5,9 @@ import (
 	"go-rgw/auth"
 )
 
-func SetupRouter() *gin.Engine {
+func SetupRouter(a auth.Auth) *gin.Engine {
 	r := gin.Default()
-	authorized := registerAuthMiddleware(r, auth.DefaultAuth{})
+	authorized := registerAuthMiddleware(r, a)
 	{
 		authorized.GET("/createbucket/:bucket", createBucket)
 
