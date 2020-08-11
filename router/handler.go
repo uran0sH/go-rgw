@@ -24,8 +24,12 @@ func putObject(c *gin.Context) {
 			metadata[key] = value
 		}
 	}
+	var hashs []string
+	hashs = append(hashs, hash)
+	metadata["Content-MD5"] = hashs
 	bucketName := c.Param("bucket")
 	objectName := c.Param("object")
+
 	err := session.SaveObject(objectName, bucketName, body, hash, metadata, "")
 	if err != nil {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
@@ -99,6 +103,9 @@ func uploadPart(c *gin.Context) {
 			metadata[key] = value
 		}
 	}
+	var hashs []string
+	hashs = append(hashs, hash)
+	metadata["Content-MD5"] = hashs
 
 	err := session.SaveObjectPart(objectName, bucketName, partID, uploadID, hash, body, metadata)
 	if err != nil {
