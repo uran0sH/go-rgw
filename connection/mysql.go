@@ -25,8 +25,9 @@ type User struct {
 
 // TODO add foreign key
 type Bucket struct {
-	BucketID   string `gorm:"primary_key"`
+	BucketId   string `gorm:"primary_key"`
 	BucketName string
+	UserId     string
 }
 
 // TODO add foreign key
@@ -102,8 +103,8 @@ func (m *MySQL) Close() error {
 	return err
 }
 
-func (m *MySQL) CreateBucket(name, id string) {
-	bucket := Bucket{id, name}
+func (m *MySQL) CreateBucket(userId, name, id string) {
+	bucket := Bucket{id, name, userId}
 	m.Database.Create(&bucket)
 }
 
@@ -122,7 +123,7 @@ func (m *MySQL) ListBuckets(uid string) []Bucket {
 	return buckets
 }
 
-func (m *MySQL) CreateBucketTransaction(name, id, acl string) (err error) {
+func (m *MySQL) CreateBucketTransaction(userId, name, id, acl string) (err error) {
 	tx := m.Database.Begin()
 
 	defer func() {
@@ -131,7 +132,7 @@ func (m *MySQL) CreateBucketTransaction(name, id, acl string) (err error) {
 		}
 	}()
 
-	bucket := Bucket{BucketID: id, BucketName: name}
+	bucket := Bucket{BucketId: id, BucketName: name, UserId: userId}
 	if err = m.Database.Create(&bucket).Error; err != nil {
 		return
 	}

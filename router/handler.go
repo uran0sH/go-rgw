@@ -110,7 +110,7 @@ func createBucket(c *gin.Context) {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
 		return
 	}
-	err = session.CreateBucket(bucketName, string(aclByte))
+	err = session.CreateBucket(userId, bucketName, string(aclByte))
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		return

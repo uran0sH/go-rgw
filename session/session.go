@@ -43,7 +43,7 @@ func SaveObject(objectName, bucketName string, object io.ReadCloser, hash string
 	if err != nil {
 		return err
 	}
-	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketId
 	if bucketID == "" {
 		return fmt.Errorf("bucket doesn't exist")
 	}
@@ -102,9 +102,9 @@ func rollbackSaveObject(id string) {
 	}()
 }
 
-func CreateBucket(bucketName, acl string) error {
+func CreateBucket(userId, bucketName, acl string) error {
 	bucketID := allocator.AllocateUUID()
-	err := connection.MysqlMgr.MySQL.CreateBucketTransaction(bucketName, bucketID, acl)
+	err := connection.MysqlMgr.MySQL.CreateBucketTransaction(userId, bucketName, bucketID, acl)
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func CreateBucket(bucketName, acl string) error {
 }
 
 func GetObject(bucketName, objectName string) (data []byte, err error) {
-	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketId
 	name := bucketID + "-" + objectName
 	object := connection.MysqlMgr.MySQL.FindObject(name)
 	oid := object.ObjectID
@@ -161,7 +161,7 @@ func CreateMultipartUpload(objectName, bucketName, metadata, acl string) error {
 	if err != nil {
 		return err
 	}
-	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketId
 	if bucketID == "" {
 		return fmt.Errorf("bucket doesn't exist")
 	}
@@ -206,7 +206,7 @@ func SaveObjectPart(objectName, bucketName, partID, uploadID, hash string, objec
 	if err != nil {
 		return err
 	}
-	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketId
 	if bucketID == "" {
 		return fmt.Errorf("bucket doesn't exist")
 	}
@@ -235,7 +235,7 @@ func SaveObjectPart(objectName, bucketName, partID, uploadID, hash string, objec
 }
 
 func CompleteMultipartUpload(bucketName, objectName, uploadID string, partIDs []string) (err error) {
-	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketId
 	name := bucketID + "-" + objectName
 
 	objectCache.mutex.Lock()
@@ -289,7 +289,7 @@ func CompleteMultipartUpload(bucketName, objectName, uploadID string, partIDs []
 }
 
 func AbortMultipartUpload(bucketName, objectName, uploadID string) error {
-	bucketID := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	var bucketID = connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketId
 	name := bucketID + "-" + objectName
 
 	objectCache.mutex.Lock()
