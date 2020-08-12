@@ -26,7 +26,7 @@ func SaveObject(objectName, bucketName string, object io.ReadCloser, hash string
 	// 1M
 	var objectCache = make([]byte, 1024*1024)
 	var data []byte
-	// read the object
+	// Read the object
 	for {
 		n, err := object.Read(objectCache)
 		if err != nil && err != io.EOF {
@@ -102,20 +102,9 @@ func rollbackSaveObject(id string) {
 	}()
 }
 
-func CreateBucket(bucketName, userId, defaultAcl string) error {
+func CreateBucket(bucketName, acl string) error {
 	bucketID := allocator.AllocateUUID()
-	if defaultAcl == "" {
-		defaultAcl = private
-	}
-	if userId == "" {
-		userId = "root"
-	}
-	acl := newAcl(userId, defaultAcl)
-	aclByte, err := json.Marshal(&acl)
-	if err != nil {
-		return err
-	}
-	err = connection.MysqlMgr.MySQL.CreateBucketTransaction(bucketName, bucketID, string(aclByte))
+	err := connection.MysqlMgr.MySQL.CreateBucketTransaction(bucketName, bucketID, acl)
 	if err != nil {
 		return err
 	}
@@ -167,7 +156,7 @@ var objectCache = ObjectCache{
 }
 
 // save objectName->objectID & metadata & acl
-func CreateMultipartUpload(objectName, bucketName, metadata, acl string, isMultipart bool) error {
+func CreateMultipartUpload(objectName, bucketName, metadata, acl string) error {
 	clusterID, err := allocator.GetClusterID()
 	if err != nil {
 		return err
@@ -201,7 +190,7 @@ func SaveObjectPart(objectName, bucketName, partID, uploadID, hash string, objec
 
 	var cache = make([]byte, 1024*1024)
 	var data []byte
-	// read the object
+	// Read the object
 	for {
 		n, err := object.Read(cache)
 		if err != nil && err != io.EOF {
@@ -229,7 +218,7 @@ func SaveObjectPart(objectName, bucketName, partID, uploadID, hash string, objec
 	objectID := objectTmp.objectID
 	partOid := allocator.AllocateObjectID(bucketID, clusterID)
 
-	// write object's part
+	// Write object's part
 	err = connection.CephMgr.Ceph.WriteObject(connection.BucketData, partOid, data, 0)
 	defer rollback(func() { rollbackSaveObject(partOid) })
 	metadata, err := json.Marshal(&metadataM)
@@ -324,7 +313,7 @@ func AbortMultipartUpload(bucketName, objectName, uploadID string) error {
 	return nil
 }
 
-// read one object from ceph
+// Read one object from ceph
 func readOneObject(oid string) ([]byte, error) {
 	var data []byte
 	datacache := make([]byte, 1024*1024)

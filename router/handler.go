@@ -12,6 +12,10 @@ import (
 )
 
 const metaPrefix = "C-Meta-"
+const acl = "C-Acl"
+const grantReadAcl = "C-Grant-Read"
+const grantWriteAcl = "C-Grant-Write"
+const grantFullControlAcl = "C-Grant-Full-Control"
 
 // metadata is included in the request header in a form of key-value pairs and its prefix is "c-meta-"
 // request header should contain the bucket(bucketName) and filename
@@ -34,7 +38,6 @@ func putObject(c *gin.Context) {
 	if userId == "" {
 		userId = "root"
 	}
-
 	ok, err := session.CouldPut(userId, bucketName)
 	if err != nil {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
@@ -44,7 +47,31 @@ func putObject(c *gin.Context) {
 		c.Status(http.StatusForbidden)
 		return
 	}
-	err = session.SaveObject(objectName, bucketName, body, hash, metadata, "")
+
+	objectDefaultAcl := c.GetHeader(acl)
+	if objectDefaultAcl == "" {
+		objectDefaultAcl = session.Private
+	}
+	var grantee = make(map[string][]string)
+	for key, value := range c.Request.Header {
+		if key == grantReadAcl {
+			grantee[grantReadAcl] = value
+		}
+		if key == grantWriteAcl {
+			grantee[grantWriteAcl] = value
+		}
+		if key == grantFullControlAcl {
+			grantee[grantFullControlAcl] = value
+		}
+	}
+	accessControlList := session.NewAccessControlList(grantee)
+	acl := session.NewAcl(userId, objectDefaultAcl, accessControlList)
+	aclByte, err := json.Marshal(acl)
+	if err != nil {
+		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
+		return
+	}
+	err = session.SaveObject(objectName, bucketName, body, hash, metadata, string(aclByte))
 	if err != nil {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
 		return
@@ -55,9 +82,35 @@ func putObject(c *gin.Context) {
 
 func createBucket(c *gin.Context) {
 	bucketName := c.Param("bucket")
-	bucketAcl := c.GetHeader("C-Acl")
+
 	userId := c.GetString("userId")
-	err := session.CreateBucket(bucketName, userId, bucketAcl)
+	if userId == "" {
+		userId = "root"
+	}
+	bucketDefaultAcl := c.GetHeader(acl)
+	if bucketDefaultAcl == "" {
+		bucketDefaultAcl = session.Private
+	}
+	var grantee = make(map[string][]string)
+	for key, value := range c.Request.Header {
+		if key == grantReadAcl {
+			grantee[grantReadAcl] = value
+		}
+		if key == grantWriteAcl {
+			grantee[grantWriteAcl] = value
+		}
+		if key == grantFullControlAcl {
+			grantee[grantFullControlAcl] = value
+		}
+	}
+	accessControlList := session.NewAccessControlList(grantee)
+	acl := session.NewAcl(userId, bucketDefaultAcl, accessControlList)
+	aclByte, err := json.Marshal(acl)
+	if err != nil {
+		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
+		return
+	}
+	err = session.CreateBucket(bucketName, string(aclByte))
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
@@ -96,6 +149,45 @@ func getObject(c *gin.Context) {
 func createMultipartUpload(c *gin.Context) {
 	bucketName := c.Param("bucket")
 	objectName := c.Param("object")
+
+	userId := c.GetString("userId")
+	if userId == "" {
+		userId = "root"
+	}
+	ok, err := session.CouldPut(userId, bucketName)
+	if err != nil {
+		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
+		return
+	}
+	if !ok {
+		c.Status(http.StatusForbidden)
+		return
+	}
+
+	objectDefaultAcl := c.GetHeader(acl)
+	if objectDefaultAcl == "" {
+		objectDefaultAcl = session.Private
+	}
+	var grantee = make(map[string][]string)
+	for key, value := range c.Request.Header {
+		if key == grantReadAcl {
+			grantee[grantReadAcl] = value
+		}
+		if key == grantWriteAcl {
+			grantee[grantWriteAcl] = value
+		}
+		if key == grantFullControlAcl {
+			grantee[grantFullControlAcl] = value
+		}
+	}
+	accessControlList := session.NewAccessControlList(grantee)
+	acl := session.NewAcl(userId, objectDefaultAcl, accessControlList)
+	aclByte, err := json.Marshal(acl)
+	if err != nil {
+		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
+		return
+	}
+
 	var metadataMap = make(map[string][]string)
 	for key, value := range c.Request.Header {
 		if strings.HasPrefix(key, metaPrefix) {
@@ -106,7 +198,8 @@ func createMultipartUpload(c *gin.Context) {
 	if err != nil {
 		c.String(http.StatusInternalServerError, "json marshal error")
 	}
-	err = session.CreateMultipartUpload(objectName, bucketName, string(metadata), "", true)
+
+	err = session.CreateMultipartUpload(objectName, bucketName, string(metadata), string(aclByte))
 	if err != nil {
 		c.String(http.StatusInternalServerError, "create failed")
 	}

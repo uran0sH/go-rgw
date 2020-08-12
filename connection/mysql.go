@@ -290,14 +290,14 @@ func (m *MySQL) FindObjectPart(objectID string) []ObjectPart {
 	return objectParts
 }
 
-func (m *MySQL) FindBukcetAcl(bucketID string) BucketACL {
+func (m *MySQL) FindBukcetAcl(bucketAclID string) BucketACL {
 	var bucketAcl BucketACL
-	m.Database.Where("bucket_id = ?", bucketID).First(&bucketAcl)
+	m.Database.Where("acl_id = ?", bucketAclID).First(&bucketAcl)
 	return bucketAcl
 }
 
-func (m *MySQL) FindObjectAcl(objectID string) ObjectACL {
+func (m *MySQL) FindObjectAcl(objectAclID string) ObjectACL {
 	var objectAcl ObjectACL
-	m.Database.Where("object_id = ?", objectID).First(&objectAcl)
+	m.Database.Where("acl_id = ?", objectAclID).First(&objectAcl)
 	return objectAcl
 }
