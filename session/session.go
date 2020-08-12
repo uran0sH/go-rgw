@@ -218,6 +218,18 @@ func SaveObjectPart(objectName, bucketName, partID, uploadID, hash string, objec
 	objectID := objectTmp.objectID
 	partOid := allocator.AllocateObjectID(bucketID, clusterID)
 
+	// check hash
+	check := md5.New()
+	hashcache := bufio.NewReader(bytes.NewReader(data))
+	_, err = io.Copy(check, hashcache)
+	if err != nil {
+		return
+	}
+	hashC := base64.StdEncoding.EncodeToString(check.Sum(nil))
+	if hashC != hash {
+		return fmt.Errorf("hash inconsistency")
+	}
+
 	// Write object's part
 	err = connection.CephMgr.Ceph.WriteObject(connection.BucketData, partOid, data, 0)
 	defer rollback(func() { rollbackSaveObject(partOid) })
