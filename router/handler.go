@@ -68,6 +68,19 @@ func createBucket(c *gin.Context) {
 func getObject(c *gin.Context) {
 	bucketName := c.Param("bucket")
 	objectName := c.Param("object")
+	userId := c.GetString("userId")
+	if userId == "" {
+		userId = "root"
+	}
+	ok, err := session.CouldGet(userId, bucketName, objectName)
+	if err != nil {
+		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
+		return
+	}
+	if !ok {
+		c.Status(http.StatusForbidden)
+		return
+	}
 	content, err := session.GetObject(bucketName, objectName)
 	if err == nil {
 		c.Writer.WriteHeader(http.StatusOK)

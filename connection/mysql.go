@@ -39,15 +39,15 @@ type Object struct {
 	IsMultipart bool
 }
 
-// MetadataID is the objectID-acl
+// AclID is the objectID-acl
 type ObjectACL struct {
-	ACLID string `gorm:"primary_key"`
-	ACL   string
+	AclID string `gorm:"primary_key"`
+	Acl   string
 }
 
 type BucketACL struct {
-	BucketID string `gorm:"primary_key"`
-	ACL      string
+	AclID string `gorm:"primary_key"`
+	Acl   string
 }
 
 // MetadataID is the objectID-metadata
@@ -135,7 +135,7 @@ func (m *MySQL) CreateBucketTransaction(name, id, acl string) (err error) {
 	if err = m.Database.Create(&bucket).Error; err != nil {
 		return
 	}
-	bucketAcl := BucketACL{BucketID: id, ACL: acl}
+	bucketAcl := BucketACL{AclID: id + "-acl", Acl: acl}
 	if err = m.Database.Create(&bucketAcl).Error; err != nil {
 		return
 	}
@@ -236,7 +236,7 @@ func (m *MySQL) SaveObjectTransaction(objectName string, oid string, metadata st
 	}
 
 	// save acl
-	objectACL := ObjectACL{ACLID: aclID, ACL: acl}
+	objectACL := ObjectACL{AclID: aclID, Acl: acl}
 	if err = tx.Create(&objectACL).Error; err != nil {
 		return
 	}
