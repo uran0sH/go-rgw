@@ -20,3 +20,5 @@ gen
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+#Mac OS
+.DS_Store
