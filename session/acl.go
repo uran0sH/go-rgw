@@ -47,7 +47,7 @@ func NewAccessControlList(grantee map[string][]string) []Grant {
 }
 
 func CouldPut(userId, bucketName string) (bool, error) {
-	bucketId := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	bucketId := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketId
 	if bucketId == "" {
 		return false, errors.New("the bucket doesn't exist")
 	}
@@ -81,7 +81,7 @@ func CouldPut(userId, bucketName string) (bool, error) {
 }
 
 func CouldGet(userId, bucketName, objectName string) (bool, error) {
-	bucketId := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketID
+	bucketId := connection.MysqlMgr.MySQL.FindBucket(bucketName).BucketId
 	if bucketId == "" {
 		return false, errors.New("the bucket doesn't exist")
 	}
