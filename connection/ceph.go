@@ -3,6 +3,7 @@ package connection
 import (
 	"fmt"
 	"github.com/ceph/go-ceph/rados"
+	"time"
 )
 
 type Ceph struct {
@@ -27,7 +28,15 @@ func (c *Ceph) InitDefault() error {
 	if err != nil {
 		return err
 	}
-	err = c.Connection.Connect()
+	ch := make(chan error)
+	go func() {
+		ch <- c.Connection.Connect()
+	}()
+	select {
+	case err = <-ch:
+	case <-time.After(time.Second * 5):
+		err = fmt.Errorf("timed out waiting for connect")
+	}
 	if err != nil {
 		return err
 	}
