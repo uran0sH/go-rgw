@@ -9,7 +9,7 @@ import (
 var Log = logrus.New()
 
 func Init(filename string) error {
-	logFile, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0777)
+	logFile, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0777)
 	if err != nil {
 		return err
 	}
