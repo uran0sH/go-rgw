@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"go-rgw/allocator"
-	"go-rgw/log"
 	"go-rgw/session"
 	"io"
 	"net/http"
@@ -88,7 +87,6 @@ func createBucket(c *gin.Context) {
 	if userId == "" {
 		userId = "root"
 	}
-	log.Log.Info("create a bucket")
 	bucketDefaultAcl := c.GetHeader(acl)
 	if bucketDefaultAcl == "" {
 		bucketDefaultAcl = session.Private
@@ -127,7 +125,6 @@ func getObject(c *gin.Context) {
 	if userId == "" {
 		userId = "root"
 	}
-	log.Log.Info("%s dowloand %s-%s", userId, bucketName, objectName)
 	ok, err := session.CouldGet(userId, bucketName, objectName)
 	if err != nil {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
