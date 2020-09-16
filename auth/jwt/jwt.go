@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go-rgw/allocator"
 	"go-rgw/connection"
+	"go-rgw/log"
 	"net/http"
 	"strings"
 	"time"
@@ -87,6 +88,7 @@ func (j *JWT) Login(c *gin.Context) {
 func (j *JWT) CreateUser(c *gin.Context) {
 	var registerUser User
 	err := c.BindJSON(&registerUser)
+	log.Log.Infof("create a user name: %s", registerUser.Username)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "user parameter error")
 		return
