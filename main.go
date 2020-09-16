@@ -8,6 +8,7 @@ import (
 	"go-rgw/auth/jwt"
 	"go-rgw/connection"
 	"go-rgw/gc"
+	"go-rgw/log"
 	"go-rgw/router"
 )
 
@@ -19,20 +20,28 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
+	err = log.Init(config.Log.Filename)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	mysql := connection.NewMySQL(config.Database.Username, config.Database.Password, config.Database.Address, config.Database.Name,
 		"utf8mb4")
 	err = mysql.Init()
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	connection.InitMySQLManager(mysql)
 	ceph, err := connection.NewCeph()
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	err = ceph.InitDefault()
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	connection.InitCephManager(ceph)
 	gc.Init()
@@ -44,5 +53,6 @@ func main() {
 	}
 	if err := r.Run(":8080"); err != nil {
 		fmt.Println(err)
+		return
 	}
 }
