@@ -8,6 +8,7 @@ import (
 type Config struct {
 	Database      Database `yaml:"database"`
 	Authorization string   `yaml:"authorization"`
+	Log           Log      `yaml:"log"`
 }
 
 type Database struct {
@@ -16,6 +17,10 @@ type Database struct {
 	Password string `yaml:"password"`
 	Address  string `yaml:"address"`
 	Name     string `yaml:"name"`
+}
+
+type Log struct {
+	Filename string `yaml:"filename"`
 }
 
 func readConfig(filename string) (config *Config, err error) {
