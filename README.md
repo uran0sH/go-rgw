@@ -14,10 +14,6 @@ We store the metadata and acl of the object in the database, like MySQL, ES and 
 object in the ceph, which is convenient to increase the Ceph cluster when we need more space to store data. Also, 
 decreasing the number of reads and writes to the Ceph could improve the system performance.
 
-## Architecture
-![architecture](docs/architecture.png)
-
-
 ## Installation Guide
 * Step 1: Install Go on your machine and set up the environment by the following instruction at:  
 [https://golang.org/doc/install](https://golang.org/doc/install)  
@@ -53,7 +49,29 @@ All the above fields are required. The default path of the configuration file is
 or if you don't use the default path of the configuration file:  
 `./octopus -config={path}`
 
-## API
+## Architecture
+![architecture](docs/architecture.png)
+
+### RESTful API
+This project support the REST API and the detail is in [the API Reference](#api-reference). We also provide the SDK.
+
+### Session Controller
+The Session Controller is responsible for uploading an object, downloading an object, creating a bucket, listing buckets
+and so on. The Session Controller ensures the consistency between data and metadata.
+
+#### Save Object
+`func SaveObject(objectName, bucketName string, object io.ReadCloser, hash string, metadataM map[string][]string, 
+acl string) (err error)`  
+This function gets the object from the handler and saves the object into the Ceph cluster.  
+`objectName` is the name of object.  
+`bucketName` is the name of bucket which contains the object.  
+`object` is a type of `io.ReadCloser` and is the data of object.
+`hash` is the hash of the object.
+`metadataM` saves the metadata of object in the form of map.  
+`acl` saves the acl of object as a JSON string.
+
+
+## API Reference
 * create a bucket  
 `/createbucket/:bucket`
 * upload an object  
