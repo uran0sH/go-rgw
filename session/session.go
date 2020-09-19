@@ -10,6 +10,7 @@ import (
 	"go-rgw/allocator"
 	"go-rgw/connection"
 	"go-rgw/gc"
+	"go-rgw/log"
 	"io"
 	"sync"
 )
@@ -20,6 +21,7 @@ func SaveObject(objectName, bucketName string, object io.ReadCloser, hash string
 	rollback := func(rollback func()) {
 		if err != nil {
 			rollback()
+			log.Log.Infof("Save object failed and rollback.")
 		}
 	}
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"go-rgw/allocator"
+	"go-rgw/log"
 	"go-rgw/session"
 	"io"
 	"net/http"
@@ -28,26 +29,33 @@ func putObject(c *gin.Context) {
 			metadata[key] = value
 		}
 	}
+	// add hash to the map of metadata
 	var hashs []string
 	hashs = append(hashs, hash)
 	metadata["Content-MD5"] = hashs
 	bucketName := c.Param("bucket")
 	objectName := c.Param("object")
 
+	// get userId
 	userId := c.GetString("userId")
 	if userId == "" {
 		userId = "root"
 	}
+
+	// determine whether you have the permission to save
 	ok, err := session.CouldPut(userId, bucketName)
 	if err != nil {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
+		log.Log.Error(err)
 		return
 	}
 	if !ok {
 		c.Status(http.StatusForbidden)
+		log.Log.Infof("%s doesn't have the permission to save the object", userId)
 		return
 	}
 
+	// get acl of object from the header
 	objectDefaultAcl := c.GetHeader(acl)
 	if objectDefaultAcl == "" {
 		objectDefaultAcl = session.Private
@@ -64,18 +72,26 @@ func putObject(c *gin.Context) {
 			grantee[grantFullControlAcl] = value
 		}
 	}
+	// new an access contro list based on the acl obtained
 	accessControlList := session.NewAccessControlList(grantee)
 	acl := session.NewAcl(userId, objectDefaultAcl, accessControlList)
 	aclByte, err := json.Marshal(acl)
 	if err != nil {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
+		log.Log.Error(err)
 		return
 	}
+
+	// save object
 	err = session.SaveObject(objectName, bucketName, body, hash, metadata, string(aclByte))
 	if err != nil {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
+		log.Log.Error(err)
 		return
 	}
+	log.Log.Infof("%s saves %s in %s", userId, objectName, bucketName)
+
+	// return the hash of object
 	c.Header("ETag", hash)
 	c.Status(http.StatusOK)
 }
