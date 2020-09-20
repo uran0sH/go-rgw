@@ -29,7 +29,7 @@ On rpm based systems (dnf, yum, etc):
 * Step 6: Now you could start a local build by calling `make build` under the root path of this project.
 
 ## Example Usage
-We offer a Go-SDK in [octopus-sdk]().
+We offer a Go-SDK in [octopus-sdk](https://github.com/RobotHuang/go-rgw-client).
 
 * Step1: write configuration file, like  
 ```yaml
@@ -68,9 +68,19 @@ This function gets the object from the handler and saves the object into the Cep
 `object` is a type of `io.ReadCloser` and is the data of object.
 `hash` is the hash of the object.
 `metadataM` saves the metadata of object in the form of map.  
-`acl` saves the acl of object as a JSON string.
+`acl` saves the acl of object as a JSON string.  
+If any of data, metadata or acl fails to save, we will rollback and delete all of them.
 
+#### Get Object
+ `func GetObject(bucketName, objectName string) (data []byte, err error)`  
+This function gets the object from Ceph cluster and return it as `[]byte` to the handler.  
+`bucketName` is the name of bucket.  
+`objectName` is the name of object.  
+`data` is the data of object.  
+`GetObject()` gets the `oid` based on the `bucketName` and the `objectName`. According to the `oid`, we could determine 
+if the object is multipart. `GetObject()` calls `readMultipartObject()` if the object is multipart, or it calls `readOneObject()`.  
 
+ 
 ## API Reference
 * create a bucket  
 `/createbucket/:bucket`
