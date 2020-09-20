@@ -120,8 +120,10 @@ func GetObject(bucketName, objectName string) (data []byte, err error) {
 	oid := object.ObjectID
 	isMultipart := object.IsMultipart
 	if !isMultipart {
+		log.Log.Infof("Get %s", oid)
 		data, err = readOneObject(oid)
 	} else {
+		log.Log.Infof("Get %s multipart", oid)
 		data, err = readMultipartObject(oid)
 	}
 	if err != nil {
@@ -346,6 +348,7 @@ func readOneObject(oid string) ([]byte, error) {
 	return data, nil
 }
 
+// Read multipart object from ceph
 func readMultipartObject(oid string) ([]byte, error) {
 	objectParts := connection.MysqlMgr.MySQL.FindObjectPart(oid)
 	var data []byte
