@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-var mysql = NewMySQL("root", "root", "118.31.64.83:3306", "test", "utf8mb4")
+var mysql = NewMySQL("root", "root", "127.0.0.1:3306", "ceph", "utf8mb4")
 
 func TestMain(m *testing.M) {
 	_ = mysql.Init()
@@ -49,5 +49,12 @@ func TestMySQL_FindObject(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		object := mysql.FindObject("test" + strconv.Itoa(4))
 		t.Logf("name: %s, id: %s", object.ObjectName, object.ObjectID)
+	}
+}
+
+func TestMySQL_CreateBucketTransaction(t *testing.T) {
+	err := mysql.CreateBucketTransaction("111", "111", "123", "123")
+	if err != nil {
+		t.Error(err)
 	}
 }

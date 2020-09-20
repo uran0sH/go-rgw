@@ -18,6 +18,7 @@ func SetupRouter(a auth.Auth) *gin.Engine {
 		authorized.POST("/uploads/upload/:bucket/:object", uploadPart)
 		authorized.POST("/uploads/complete/:bucket/:object", completeMultipartUpload)
 		authorized.POST("/uploads/abort/:bucket/:object", abortMultipartUpload)
+
 	}
 	return r
 }
