@@ -141,16 +141,20 @@ func getObject(c *gin.Context) {
 	if userId == "" {
 		userId = "root"
 	}
+	// determine whether you have the permission to save
 	ok, err := session.CouldGet(userId, bucketName, objectName)
 	if err != nil {
 		c.String(http.StatusInternalServerError, fmt.Sprintf("%v", err))
+		log.Log.Error(err)
 		return
 	}
 	if !ok {
 		c.Status(http.StatusForbidden)
+		log.Log.Infof("%s doesn't have the permission to download the object", userId)
 		return
 	}
 	content, err := session.GetObject(bucketName, objectName)
+	log.Log.Infof("%s downloads %s in %s", userId, objectName, bucketName)
 	if err == nil {
 		c.Writer.WriteHeader(http.StatusOK)
 		c.Header("Content-Disposition", "attachment; filename="+objectName)
