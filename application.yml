@@ -2,7 +2,7 @@ database:
   dialect: mysql
   username: root
   password: root
-  address: 118.31.64.83:3306
+  address: 127.0.0.1:3306
   name: ceph
 authorization: jwt
 log:
