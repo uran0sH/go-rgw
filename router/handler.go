@@ -9,6 +9,7 @@ import (
 	"go-rgw/session"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -314,4 +315,27 @@ func abortMultipartUpload(c *gin.Context) {
 	}
 	c.Status(http.StatusOK)
 	return
+}
+
+func imageBlur(c *gin.Context) {
+	bucketName := c.Param("bucket")
+	objectName := c.Param("object")
+	sigma, err := strconv.ParseFloat(c.Query("sigma"), 64)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		log.Log.Error(err)
+		return
+	}
+	suffix := c.Query("suffix")
+	content, err := session.Blur(bucketName, objectName, sigma, suffix)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		log.Log.Error(err)
+		return
+	}
+	c.Writer.WriteHeader(http.StatusOK)
+	c.Header("Content-Disposition", "attachment; filename="+objectName)
+	c.Header("Content-Type", fmt.Sprintf("image/%s", suffix))
+	c.Header("Accept-Length", fmt.Sprintf("%d", len(content)))
+	_, _ = c.Writer.Write(content)
 }
