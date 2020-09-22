@@ -1,9 +1,12 @@
 package session
 
 import (
+	"bytes"
 	"fmt"
 	"go-rgw/connection"
 	"go-rgw/gc"
+	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -78,7 +81,6 @@ func TestCreateBucket(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
 		{
 			name: "createBucket1",
 			args: args{
@@ -149,30 +151,46 @@ func TestCreateBucket(t *testing.T) {
 //	}
 //}
 
-//func TestSaveObject(t *testing.T) {
-//	type args struct {
-//		objectName string
-//		bucketName string
-//		object     io.ReadCloser
-//		hash       string
-//		metadataM  map[string][]string
-//		acl        string
-//	}
-//	tests := []struct {
-//		name    string
-//		args    args
-//		wantErr bool
-//	}{
-//		// TODO: Add test cases.
-//	}
-//	for _, tt := range tests {
-//		t.Run(tt.name, func(t *testing.T) {
-//			if err := SaveObject(tt.args.objectName, tt.args.bucketName, tt.args.object, tt.args.hash, tt.args.metadataM, tt.args.acl); (err != nil) != tt.wantErr {
-//				t.Errorf("SaveObject() error = %v, wantErr %v", err, tt.wantErr)
-//			}
-//		})
-//	}
-//}
+func TestSaveObject(t *testing.T) {
+	type args struct {
+		objectName string
+		bucketName string
+		object     io.ReadCloser
+		hash       string
+		metadataM  map[string][]string
+		acl        string
+	}
+	data, _ := ioutil.ReadFile("../testdata/flowers.png")
+	reader := bytes.NewReader(data)
+	obj := ioutil.NopCloser(reader)
+	metadata := make(map[string][]string, 10)
+	metadata["suffix"] = []string{".png"}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "saveObject1",
+			args: args{
+				objectName: "testObj",
+				bucketName: "test1",
+				object:     obj,
+				hash:       "bK5dxPxwc7aYTbylAizGTg==",
+				metadataM:  metadata,
+				acl:        "",
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := SaveObject(tt.args.objectName, tt.args.bucketName, tt.args.object, tt.args.hash, tt.args.metadataM, tt.args.acl); (err != nil) != tt.wantErr {
+				t.Errorf("SaveObject() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
 
 //func TestSaveObjectPart(t *testing.T) {
 //	type args struct {

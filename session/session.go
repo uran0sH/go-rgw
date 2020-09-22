@@ -60,7 +60,7 @@ func SaveObject(objectName, bucketName string, object io.ReadCloser, hash string
 	}
 	hashC := base64.StdEncoding.EncodeToString(check.Sum(nil))
 	if hashC != hash {
-		return fmt.Errorf("hash inconsistency")
+		return fmt.Errorf("hash inconsistency && hash is %s", hashC)
 	}
 
 	// save object
