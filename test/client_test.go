@@ -48,6 +48,10 @@ func (suite *ClientTestSuite) TearDownSuite() {
 
 }
 
+func TestClientTestSuite(t *testing.T) {
+	suite.Run(t, new(ClientTestSuite))
+}
+
 func (suite *ClientTestSuite) TestRegisterWithJwt() {
 	user := User{Username: "test1", Password: "test1"}
 	data, err := json.Marshal(user)
@@ -65,7 +69,7 @@ func (suite *ClientTestSuite) TestRegisterWithJwt() {
 	}
 }
 
-func (suite *ClientTestSuite) TestLoginWithJwt() {
+func (suite *ClientTestSuite) LoginWithJwt() string {
 	user := User{Username: "test1", Password: "test1"}
 	data, err := json.Marshal(user)
 	require.NoError(suite.T(), err)
@@ -81,16 +85,18 @@ func (suite *ClientTestSuite) TestLoginWithJwt() {
 	if assert.NoError(suite.T(), err) {
 		//token
 		suite.token = result.Data
-		fmt.Println(result.Data)
+		return suite.token
 	}
+	return ""
 }
 
 func (suite *ClientTestSuite) TestCreateBucket() {
+	token := suite.LoginWithJwt()
 	client := http.Client{}
 	request, err := http.NewRequest("GET", suite.ip+"/createbucket/"+"buckettest1", nil)
 	require.NoError(suite.T(), err)
 	request.Header.Add("C-Acl", "PUBLIC_READ")
-	request.Header.Add("Authorization", "Bearer "+suite.token)
+	request.Header.Add("Authorization", "Bearer "+token)
 	rep, err := client.Do(request)
 	require.NoError(suite.T(), err)
 	res, err := ioutil.ReadAll(rep.Body)
@@ -101,6 +107,7 @@ func (suite *ClientTestSuite) TestCreateBucket() {
 }
 
 func (suite *ClientTestSuite) TestUpload() {
+	token := suite.LoginWithJwt()
 	content, err := ioutil.ReadFile("../testdata/flowers.png")
 	require.NoError(suite.T(), err)
 	client := http.Client{}
@@ -114,7 +121,7 @@ func (suite *ClientTestSuite) TestUpload() {
 	hash := base64.StdEncoding.EncodeToString(checkSum.Sum(nil))
 	request.Header.Add("Content-MD5", hash)
 	request.Header.Add("c-meta-hello", "hello meta")
-	request.Header.Add("Authorization", "Bearer "+suite.token)
+	request.Header.Add("Authorization", "Bearer "+token)
 	request.Header.Add("C-Acl", "PUBLIC")
 	rep, err := client.Do(request)
 	require.NoError(suite.T(), err)
@@ -127,10 +134,11 @@ func (suite *ClientTestSuite) TestUpload() {
 }
 
 func (suite *ClientTestSuite) TestDownload() {
+	token := suite.LoginWithJwt()
 	client := http.Client{}
 	request, err := http.NewRequest("GET", suite.ip+"/download/buckettest1/test1", nil)
 	require.NoError(suite.T(), err)
-	request.Header.Add("Authorization", "Bearer "+suite.token)
+	request.Header.Add("Authorization", "Bearer "+token)
 	rep, err := client.Do(request)
 	if assert.NoError(suite.T(), err) {
 		data, err := ioutil.ReadAll(rep.Body)
@@ -139,8 +147,4 @@ func (suite *ClientTestSuite) TestDownload() {
 			require.NoError(suite.T(), err)
 		}
 	}
-}
-
-func TestClientTestSuite(t *testing.T) {
-	suite.Run(t, new(ClientTestSuite))
 }
