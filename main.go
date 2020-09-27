@@ -33,7 +33,12 @@ func main() {
 		return
 	}
 	connection.InitMySQLManager(mysql)
-	ceph, err := connection.NewCeph()
+	var ceph *connection.Ceph
+	if config.Ceph.User == "" && config.Ceph.Monitors == "" && config.Ceph.Keyring == "" {
+		ceph, err = connection.NewCeph()
+	} else {
+		ceph, err = connection.NewCephWithArgs(config.Ceph.User, config.Ceph.Monitors, config.Ceph.Keyring)
+	}
 	if err != nil {
 		fmt.Println(err)
 		return

@@ -40,6 +40,10 @@ database:
   address: 127.0.0.1:3306
   name: ceph
 authorization: jwt
+Ceph:
+  user: " "
+  monitors: " "
+  keyring: " "
 log:
   filename: ./rgw.log
 ```

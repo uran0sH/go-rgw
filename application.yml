@@ -5,5 +5,9 @@ database:
   address: 127.0.0.1:3306
   name: ceph
 authorization: null
+Ceph:
+  user: " "
+  monitors: " "
+  keyring: " "
 log:
   filename: ./rgw.log

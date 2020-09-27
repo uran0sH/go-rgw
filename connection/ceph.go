@@ -23,6 +23,26 @@ func NewCeph() (*Ceph, error) {
 	return ceph, nil
 }
 
+func NewCephWithArgs(user, monitors, keyring string) (*Ceph, error) {
+	conn, err := rados.NewConnWithUser(user)
+	if err != nil {
+		err = fmt.Errorf("NewConn failed")
+		return nil, err
+	}
+	keyfile := fmt.Sprintf("--keyfile=%v", keyring)
+	args := []string{"-m", monitors, keyfile}
+	err = conn.ParseCmdLineArgs(args)
+	if err != nil {
+		err = fmt.Errorf("ParseCmdLineArgs failed")
+		return nil, err
+	}
+	ceph := &Ceph{
+		Connection: conn,
+		Pools:      make(map[string]bool),
+	}
+	return ceph, nil
+}
+
 func (c *Ceph) InitDefault() error {
 	err := c.Connection.ReadDefaultConfigFile()
 	if err != nil {

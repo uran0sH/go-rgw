@@ -9,6 +9,7 @@ type Config struct {
 	Database      Database `yaml:"database"`
 	Authorization string   `yaml:"authorization"`
 	Log           Log      `yaml:"log"`
+	Ceph          Ceph     `yaml:"ceph"`
 }
 
 type Database struct {
@@ -21,6 +22,12 @@ type Database struct {
 
 type Log struct {
 	Filename string `yaml:"filename"`
+}
+
+type Ceph struct {
+	User     string `yaml:"user"`
+	Monitors string `yaml:"monitors"`
+	Keyring  string `yaml:"keyring"`
 }
 
 func readConfig(filename string) (config *Config, err error) {
