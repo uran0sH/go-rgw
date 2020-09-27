@@ -4,10 +4,6 @@ database:
   password: root
   address: 127.0.0.1:3306
   name: ceph
-authorization: null
-Ceph:
-  user: " "
-  monitors: " "
-  keyring: " "
+authorization: jwt
 log:
   filename: ./rgw.log
