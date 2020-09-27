@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"io/ioutil"
 	"net/http"
+	"testing"
 )
 
 type User struct {
@@ -32,7 +33,7 @@ type ClientTestSuite struct {
 }
 
 func (suite *ClientTestSuite) SetupSuite() {
-	suite.ip = "118.31.64.83:8080"
+	suite.ip = "http://118.31.64.83:8080"
 }
 
 func (suite *ClientTestSuite) SetupTest() {
@@ -137,4 +138,8 @@ func (suite *ClientTestSuite) TestDownload() {
 			require.NoError(suite.T(), err)
 		}
 	}
+}
+
+func TestClientTestSuite(t *testing.T) {
+	suite.Run(t, new(ClientTestSuite))
 }
