@@ -130,6 +130,7 @@ func (suite *ClientTestSuite) TestDownload() {
 	client := http.Client{}
 	request, err := http.NewRequest("GET", suite.ip+"/download/buckettest1/test1", nil)
 	require.NoError(suite.T(), err)
+	request.Header.Add("Authorization", "Bearer "+suite.token)
 	rep, err := client.Do(request)
 	if assert.NoError(suite.T(), err) {
 		data, err := ioutil.ReadAll(rep.Body)
