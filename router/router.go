@@ -20,6 +20,8 @@ func SetupRouter(a auth.Auth) *gin.Engine {
 		authorized.POST("/uploads/abort/:bucket/:object", abortMultipartUpload)
 
 		authorized.GET("/image/blur/:bucket/:object", imageBlur)
+		authorized.GET("/image/resize/:bucket/:object", imageResize)
+		authorized.GET("/image/cropAnchor/:bucket/:object", imageCropAnchor)
 	}
 	return r
 }

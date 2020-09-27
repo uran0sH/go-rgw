@@ -339,3 +339,62 @@ func imageBlur(c *gin.Context) {
 	c.Header("Accept-Length", fmt.Sprintf("%d", len(content)))
 	_, _ = c.Writer.Write(content)
 }
+
+func imageResize(c *gin.Context) {
+	bucketName := c.Param("bucket")
+	objectName := c.Param("object")
+	width, err := strconv.Atoi(c.Query("width"))
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		log.Log.Error(fmt.Errorf("width: %s", err))
+		return
+	}
+	height, err := strconv.Atoi(c.Query("height"))
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		log.Log.Error(fmt.Errorf("height :%s", err))
+		return
+	}
+	suffix := c.Query("suffix")
+	content, err := session.Resize(bucketName, objectName, width, height, suffix)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		log.Log.Error(err)
+		return
+	}
+	c.Writer.WriteHeader(http.StatusOK)
+	c.Header("Content-Disposition", "attachment; filename="+objectName)
+	c.Header("Content-Type", fmt.Sprintf("image/%s", suffix))
+	c.Header("Accept-Length", fmt.Sprintf("%d", len(content)))
+	_, _ = c.Writer.Write(content)
+}
+
+func imageCropAnchor(c *gin.Context) {
+	bucketName := c.Param("bucket")
+	objectName := c.Param("object")
+	width, err := strconv.Atoi(c.Query("width"))
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		log.Log.Error(fmt.Errorf("width: %s", err))
+		return
+	}
+	height, err := strconv.Atoi(c.Query("height"))
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		log.Log.Error(fmt.Errorf("height :%s", err))
+		return
+	}
+	anchor := c.Query("anchor")
+	suffix := c.Query("suffix")
+	content, err := session.CropAnchor(bucketName, objectName, width, height, anchor, suffix)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		log.Log.Error(err)
+		return
+	}
+	c.Writer.WriteHeader(http.StatusOK)
+	c.Header("Content-Disposition", "attachment; filename="+objectName)
+	c.Header("Content-Type", fmt.Sprintf("image/%s", suffix))
+	c.Header("Accept-Length", fmt.Sprintf("%d", len(content)))
+	_, _ = c.Writer.Write(content)
+}
