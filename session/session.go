@@ -118,6 +118,9 @@ func GetObject(bucketName, objectName string) (data []byte, err error) {
 	name := bucketID + "-" + objectName
 	object := connection.MysqlMgr.MySQL.FindObject(name)
 	oid := object.ObjectID
+	if oid == "" {
+		return nil, fmt.Errorf("This object doesn't exist.")
+	}
 	isMultipart := object.IsMultipart
 	if !isMultipart {
 		log.Log.Infof("Get %s", oid)
