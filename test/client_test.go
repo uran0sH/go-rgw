@@ -141,7 +141,7 @@ func (suite *ClientTestSuite) TestUpload() {
 func (suite *ClientTestSuite) TestDownload() {
 	token := suite.LoginWithJwt()
 	client := http.Client{}
-	request, err := http.NewRequest("GET", suite.ip+"/download/"+suite.bucket+"/test1multipart", nil)
+	request, err := http.NewRequest("GET", suite.ip+"/download/"+suite.bucket+"/test1", nil)
 	require.NoError(suite.T(), err)
 	request.Header.Add("Authorization", "Bearer "+token)
 	rep, err := client.Do(request)
