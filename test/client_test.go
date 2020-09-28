@@ -141,7 +141,7 @@ func (suite *ClientTestSuite) TestUpload() {
 func (suite *ClientTestSuite) TestDownload() {
 	token := suite.LoginWithJwt()
 	client := http.Client{}
-	request, err := http.NewRequest("GET", suite.ip+"/download/"+suite.bucket+"/test1", nil)
+	request, err := http.NewRequest("GET", suite.ip+"/download/"+suite.bucket+"/test1multipart", nil)
 	require.NoError(suite.T(), err)
 	request.Header.Add("Authorization", "Bearer "+token)
 	rep, err := client.Do(request)
@@ -160,7 +160,7 @@ type UploadID struct {
 
 func (suite *ClientTestSuite) TestMultipartUploadComplete() {
 	token := suite.LoginWithJwt()
-	uploadId := suite.CreateMultipartUpload()
+	uploadId := suite.CreateMultipartUpload(token)
 	num, parts := suite.SpliteObject()
 	var etags = make([]string, num)
 	for i := 0; i < num; i++ {
@@ -200,13 +200,14 @@ func (suite *ClientTestSuite) TestMultipartUploadComplete() {
 		}
 		multipart.Parts = append(multipart.Parts, part)
 	}
-	suite.CompleteMultipartUpload(uploadId, suite.bucket, "test1", multipart)
+	suite.CompleteMultipartUpload(uploadId, suite.bucket, "test1multipart", multipart, token)
 }
 
-func (suite *ClientTestSuite) CreateMultipartUpload() string {
+func (suite *ClientTestSuite) CreateMultipartUpload(token string) string {
 	client := http.Client{}
 	request, err := http.NewRequest("POST", suite.ip+"/uploads/create/"+suite.bucket+"/test1multipart", nil)
 	require.NoError(suite.T(), err)
+	request.Header.Add("Authorization", "Bearer "+token)
 	rep, err := client.Do(request)
 	require.NoError(suite.T(), err)
 	body, err := ioutil.ReadAll(rep.Body)
@@ -231,7 +232,11 @@ func (suite *ClientTestSuite) SpliteObject() (int, [][]byte) {
 	var parts = make([][]byte, n)
 	num := 0
 	for num < n {
-		parts[num] = content[num*size : (num+1)*size]
+		if num == n-1 {
+			parts[num] = append(parts[num], content[num*size:]...)
+		} else {
+			parts[num] = append(parts[num], content[num*size:(num+1)*size]...)
+		}
 		num++
 	}
 	return num, parts
@@ -246,7 +251,7 @@ type CompleteMultipart struct {
 	Parts []Part
 }
 
-func (suite *ClientTestSuite) CompleteMultipartUpload(uploadID, bucket, object string, multipart CompleteMultipart) {
+func (suite *ClientTestSuite) CompleteMultipartUpload(uploadID, bucket, object string, multipart CompleteMultipart, token string) {
 	data, err := json.Marshal(&multipart)
 	if err != nil {
 		fmt.Println(err)
@@ -260,16 +265,60 @@ func (suite *ClientTestSuite) CompleteMultipartUpload(uploadID, bucket, object s
 	v.Set("UploadId", uploadID)
 	u.RawQuery = v.Encode()
 	request, err := http.NewRequest("POST", u.String(), body)
+	require.NoError(suite.T(), err)
+	request.Header.Add("Authorization", "Bearer "+token)
 	rep, err := client.Do(request)
 	require.NoError(suite.T(), err)
 	fmt.Printf("%v", rep.StatusCode)
 }
 
-func (suite *ClientTestSuite) AbortMultipartUpload(uploadID, bucket, object string) {
+func (suite *ClientTestSuite) AbortMultipartUpload(uploadID, bucket, object, token string) {
 	client := http.Client{}
-	request, err := http.NewRequest("POST", suite.ip+"/uploads/abort/"+bucket+"/"+object, nil)
+	apiUrl := suite.ip + "/uploads/abort/" + bucket + "/" + object
+	u, err := url.ParseRequestURI(apiUrl)
 	require.NoError(suite.T(), err)
+	v := url.Values{}
+	v.Set("UploadId", uploadID)
+	u.RawQuery = v.Encode()
+	request, err := http.NewRequest("POST", u.String(), nil)
+	require.NoError(suite.T(), err)
+	request.Header.Add("Authorization", "Bearer "+token)
 	rep, err := client.Do(request)
 	require.NoError(suite.T(), err)
 	fmt.Printf("%v", rep.StatusCode)
+}
+
+func (suite *ClientTestSuite) TestMultipartUploadAbort() {
+	token := suite.LoginWithJwt()
+	uploadId := suite.CreateMultipartUpload(token)
+	num, parts := suite.SpliteObject()
+	var etags = make([]string, num)
+	for i := 0; i < num; i++ {
+		client := http.Client{}
+		apiUrl := suite.ip + "/uploads/upload/" + suite.bucket + "/" + "test1multipart"
+		u, err := url.ParseRequestURI(apiUrl)
+		require.NoError(suite.T(), err)
+		data := url.Values{}
+		data.Set("PartNumber", strconv.Itoa(i))
+		data.Set("UploadId", uploadId)
+		u.RawQuery = data.Encode()
+		body := bytes.NewReader(parts[i])
+		request, err := http.NewRequest("POST", u.String(), body)
+		require.NoError(suite.T(), err)
+		checkSum := md5.New()
+		checkSum.Write(parts[i])
+		hash := base64.StdEncoding.EncodeToString(checkSum.Sum(nil))
+		fmt.Println(hash)
+		request.Header.Add("Content-MD5", hash)
+		request.Header.Add("Authorization", "Bearer "+token)
+		request.Header.Add("c-meta-hello", "hello meta")
+		request.Header.Add("C-Acl", "PUBLIC")
+		rep, err := client.Do(request)
+		if assert.NoError(suite.T(), err) {
+			etag := rep.Header.Get("ETag")
+			etags = append(etags, etag)
+		}
+	}
+
+	suite.AbortMultipartUpload(uploadId, suite.bucket, "test1multipart", token)
 }
