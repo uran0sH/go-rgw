@@ -22,7 +22,7 @@ On rpm based systems (dnf, yum, etc):
 * Step 6: Now you could start a local build by calling `make build` under the root path of this project.
 
 ## 使用
-We offer a Go-SDK in []().  
+We provide a client example in `test/client_test.go`. 
 
 * Step1: write configuration file, like  
 ```yaml
@@ -68,8 +68,14 @@ acl string) (err error)`
 这个函数会确保上传对象数据和元数据的一致性，如果其中一个上传失败会进行回滚。与Ceph自带的对象存储网关不同的是，我们只将对象的数据保存到
  Ceph 集群中，而对象的元数据和 acl ，我们将其保存到数据库中（目前是保存到 MySQL 中）。保存对象的时候，我们会为其生成一个独一无二的 id 
  ，这个 id 由 clusterID.bucketID.objectUUID 组成，通过 clusterID 我们可以确定保存到的集群，这样就算新增集群也不会影响原有的数据。 
- bucketID 是 bucketName 对应的 ID ， objectUUID 通过 UUID 生成器生成。对象的 id 和对象的名字形成一组关系保存到数据库中。  
- 
+ bucketID 是 bucketName 对应的 ID ， objectUUID 通过 UUID 生成器生成。对象的 id 和对象的名字形成一组关系保存到数据库中。 
+
+#### 分块上传对象
+1. 初始化分块上传：上传对象名字，元数据，网关会暂时将这些数据进行缓存不写入数据库中。ACL。返回给客户端一个UploadID。  
+2. 上传分块：客户端上传分块的时候携带uploadID+partNum（partNum可以是一个有序离散的整数），存储网关根据uploadID进行Object的保存并且
+返回每个分块的hash值。  
+3. 完成或放弃上传。  
+
 #### 下载对象
 `func GetObject(bucketName, objectName string) (data []byte, err error)`  
 这个函数将根据 objectID 从 Ceph 集群获取对象数据。
@@ -89,19 +95,66 @@ acl string) (err error)`
  
 ## API REFERENCE
 * create a bucket  
-`/createbucket/:bucket`
+`/createbucket/:bucket`  
+`bucket` 创建的bucket名字
 * upload an object  
-`/upload/:bucket/:object`
+`/upload/:bucket/:object`  
+`bucket` 上传对象需要保存在哪个bucket  
+`object` 上传对象的名字  
+请求头：  
+`Content-MD5` 值为对象的 MD5 值
 * download an object  
-`/download/:bucket/:object`
+`/download/:bucket/:object`  
+`bucket` 下载对象保存在哪个bucket  
+`object` 下载的对象的名字
 * create multipartupload  
-`/uploads/create/:bucket/:object`
+`/uploads/create/:bucket/:object`  
+`bucket` 上传对象需要保存在哪个bucket  
+`object` 上传对象的名字  
+返回:  
+ `uploadId`
 * upload a part of an object  
-`/uploads/upload/:bucket/:object`
+`/uploads/upload/:bucket/:object`  
+`bucket` 上传对象需要保存在哪个bucket  
+`object` 上传对象的名字  
+参数：  
+`partNumber` 分块的编号，从小到大
+请求头：  
+`Content-MD5` 值为分块的 MD5 值
 * complete multipartupload  
-`/uploads/complete/:bucket/:object`
-* abort multipartupload
-`/uploads/abort/:bucket/:object`
+`/uploads/complete/:bucket/:object`  
+`bucket` 上传对象需要保存在哪个bucket  
+`object` 上传对象的名字  
+请求参数：  
+`UploadId` 上传对象的uploadId  
+* abort multipartupload  
+`/uploads/abort/:bucket/:object`  
+`bucket` 上传对象需要保存在哪个bucket  
+`object` 上传对象的名字  
+请求参数：  
+`UploadId` 上传对象的uploadId  
+* blur image  
+`/image/blur/:bucket/:object`  
+`bucket` 上传对象需要保存在哪个bucket  
+`object` 上传对象的名字  
+请求参数：  
+`sigma`  模糊参数  
+`suffix` 文件后缀
+* resize image  
+`/image/resize/:bucket/:object`  
+`bucket` 上传对象需要保存在哪个bucket  
+`object` 上传对象的名字  
+`width`  调整后图像宽  
+`height` 调整后图像高  
+`suffix` 文件后缀
+* crop image  
+`/image/cropAnchor/:bucket/:object`  
+`bucket` 上传对象需要保存在哪个bucket  
+`object` 上传对象的名字  
+`width`  调整后图像宽  
+`height` 调整后图像高  
+`anchor`  以哪个点进行裁剪，有 "center", "topleft", "top", "topright", "left", "right", "bottomleft", "bottom", "bottomRight"  
+`suffix` 文件后缀
 
 ### User
 * register  

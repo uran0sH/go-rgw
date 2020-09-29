@@ -1,5 +1,7 @@
 # go-rgw
 [English](README.md) | [中文](README_zh.md)  
+The English version has not been completed, while the Chinese version has been basically completed. 
+You could first read the Chinese version.
 
 ## Table of contents
 - [Introduction](#introduction)
@@ -84,8 +86,8 @@ This function gets the object from Ceph cluster and return it as `[]byte` to the
 `GetObject()` gets the `oid` based on the `bucketName` and the `objectName`. According to the `oid`, we could determine 
 if the object is multipart. `GetObject()` calls `readMultipartObject()` if the object is multipart, or it calls `readOneObject()`.  
 
- 
-## API Reference
+
+## API REFERENCE
 * create a bucket  
 `/createbucket/:bucket`
 * upload an object  
@@ -98,8 +100,14 @@ if the object is multipart. `GetObject()` calls `readMultipartObject()` if the o
 `/uploads/upload/:bucket/:object`
 * complete multipartupload  
 `/uploads/complete/:bucket/:object`
-* abort multipartupload
+* abort multipartupload  
 `/uploads/abort/:bucket/:object`
+* blur image  
+`/image/blur/:bucket/:object`
+* resize image  
+`/image/resize/:bucket/:object`
+* crop image  
+`/image/cropAnchor/:bucket/:object`
 
 ### User
 * register  
