@@ -92,6 +92,9 @@ acl string) (err error)`
 ##### 读取分块上传对象
 `func readMultipartObject(oid string) ([]byte, error)`  
 先从数据库中取得所有分块的 objectID ，然后按照 partID 从小到大的顺序读取出来，然后拼接成一个完整的对象返回给上一层。
+
+#### 图像处理
+目前图像处理部分提供高斯模糊，调整图像大小，剪切图像这些功能。
  
 ## API REFERENCE
 * create a bucket  
